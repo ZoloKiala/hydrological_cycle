@@ -5,12 +5,14 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 // --------------------------------------------------
 // Config
 // --------------------------------------------------
-const WEATHER_MODEL_PATH = "/models/weather_animated_fixed.glb";
-const TREE_MODEL_PATH = "/models/trees.glb";
-const FIELD_MODEL_PATH = "/models/field_garden.glb";
-const COW_MODEL_PATH = "/models/cow_small/scene.gltf";
-const INDUSTRY_MODEL_PATH = "/models/industry/scene.gltf";
-const BUILDING_MODEL_PATH = "/models/morning_town/scene.gltf";
+const asset = (path) => `${import.meta.env.BASE_URL}${path.replace(/^\/+/, "")}`;
+
+const WEATHER_MODEL_PATH = asset("models/weather_animated_fixed.glb");
+const TREE_MODEL_PATH = asset("models/trees.glb");
+const FIELD_MODEL_PATH = asset("models/field_garden.glb");
+const COW_MODEL_PATH = asset("models/cow_small/scene.gltf");
+const INDUSTRY_MODEL_PATH = asset("models/industry/scene.gltf");
+const BUILDING_MODEL_PATH = asset("models/morning_town/scene.gltf");
 
 const WEATHER_MODEL_SCALE = 1.8;
 
