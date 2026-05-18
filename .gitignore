@@ -1,6 +1,15 @@
-node_modules
-dist
-.vscode
+# OS / editor
 .DS_Store
-.env
-public/models/industry/
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Local server log
+nohup.out
+
+# Unused downloaded asset (~18MB) — not referenced in main.js
+models/weather_animated_fixed.glb
+
+# Memory and local Claude artifacts
+memory/

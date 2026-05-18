@@ -3,9 +3,50 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Hydrological Cycle</title>
+  <title>3D Water Cycle</title>
+  <link rel="stylesheet" href="style.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
 </head>
 <body>
-  <script type="module" src="/main.js"></script>
+  <div id="app"></div>
+
+  <div id="ui">
+    <h1>The Water Cycle</h1>
+    <p class="subtitle">Interactive 3D Visualization</p>
+    <div class="legend">
+      <div class="legend-item"><span class="dot" style="background:#4fc3f7"></span>Precipitation</div>
+      <div class="legend-item"><span class="dot" style="background:#ffd54f"></span>Evaporation</div>
+      <div class="legend-item"><span class="dot" style="background:#c8e6c9"></span>Transpiration</div>
+      <div class="legend-item"><span class="dot" style="background:#cfd8dc"></span>Condensation</div>
+      <div class="legend-item"><span class="dot" style="background:#26a69a"></span>Surface Runoff</div>
+      <div class="legend-item"><span class="dot" style="background:#8d6e63"></span>Infiltration</div>
+      <div class="legend-item"><span class="dot" style="background:#4fc3f7;border:1px solid #1565c0"></span>Water Supply</div>
+      <div class="legend-item"><span class="dot" style="background:#546e7a"></span>Stormwater</div>
+    </div>
+    <div class="abc-legend">
+      <p class="abc-title">Subsurface Flow</p>
+      <p class="abc-row"><span class="abc-letter">A</span>Infiltration — water soaks into soil</p>
+      <p class="abc-row"><span class="abc-letter">B</span>Percolation — water moves down through soil</p>
+      <p class="abc-row"><span class="abc-letter">C</span>Groundwater Flow — flow in saturated rock</p>
+    </div>
+    <div class="controls">
+      <button id="toggleLabels">Toggle Labels</button>
+      <button id="toggleRain">Toggle Rain</button>
+      <button id="resetCam">Reset Camera</button>
+    </div>
+    <p class="hint">Drag to rotate · Scroll to zoom · Right-click to pan</p>
+    <p class="credits">3D assets: <a href="https://sketchfab.com/3d-models/cow-99d333e3b4e4470a8d7d38436489c001" target="_blank" rel="noopener">Cow</a> by Josué Boisvert (CC-BY-4.0) · <a href="https://sketchfab.com/3d-models/morning-town-a8570ff99a9f408ab188bc4f8b94bf1d" target="_blank" rel="noopener">Morning Town</a> by nicolekeane (CC-BY-NC-SA-4.0) · field_garden via ZoloKiala/hydrological_cycle</p>
+  </div>
+
+  <div id="labels"></div>
+
+  <script type="module" src="main.js"></script>
 </body>
 </html>
