@@ -83,7 +83,7 @@
 
   <div id="tour-panel" class="tour-hidden">
     <div class="tour-header">
-      <span id="tour-step">1 / 10</span>
+      <span id="tour-step">1 / 12</span>
       <div class="tour-header-actions">
         <button id="tour-voice" title="Toggle narration" aria-label="Toggle narration" aria-pressed="true">Voice On</button>
         <button id="tour-close" title="Close tour" aria-label="Close tour">x</button>
@@ -98,6 +98,24 @@
     </div>
   </div>
   <button id="tour-start">Start Tour</button>
+
+  <!-- Safety: hide the loading overlay after 4 s regardless of main.js state,
+       so a stray error or slow asset never leaves it stuck on screen. -->
+  <script>
+    setTimeout(function () {
+      var l = document.getElementById('loader');
+      if (l) l.classList.add('loader-hidden');
+    }, 4000);
+    // If main.js throws, surface it next to the loader so we can see it
+    window.addEventListener('error', function (e) {
+      var l = document.getElementById('loader');
+      if (l && !l.classList.contains('loader-hidden')) {
+        var p = l.querySelector('p');
+        if (p) p.textContent = 'Init error — opening console for details';
+      }
+      console.error('[water-cycle init error]', e.message, e.filename + ':' + e.lineno);
+    });
+  </script>
 
   <script type="module" src="main.js"></script>
 </body>

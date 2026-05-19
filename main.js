@@ -370,11 +370,12 @@ function buildRiverNetwork() {
     [22, 3, 0.32], [19, 2.5, 0.42], [16, 2.0, 0.52],
     [13, 1.8, 0.62], [10, 1.6, 0.72], [8.5, 1.5, 0.80], [7, 1.5, 0.82],
   ];
-  // South tributary drains the south plain and joins main at the
-  // southernmost bend (-6.5, -2.0)
+  // South tributary now routes THROUGH the rice paddy area at (-2, -10)
+  // and joins the main river at the southernmost bend (-6.5, -2.0).
   const tributarySouth = [
-    [10, -15, 0.30], [8, -12, 0.38], [5, -9, 0.46],
-    [2, -6, 0.55],   [-1, -4.0, 0.70], [-4, -2.8, 0.85], [-6.5, -2.0, 1.0],
+    [10, -15, 0.30],  [7, -13, 0.38],   [4, -12, 0.46],
+    [1, -11, 0.55],   [-2, -10, 0.65],   // passes through paddy center
+    [-5, -8, 0.78],   [-6, -5, 0.90],   [-6.5, -2.0, 1.0],
   ];
 
   function buildRibbon(controlPoints, baseWidth) {
@@ -610,26 +611,146 @@ function makeTreeCluster(cx, cz, count, radius, scaleMin = 0.75, scaleMax = 1.35
 
 // Tree clusters across the open plains. Denser counts and a few extra
 // clusters to fill the landscape.
-makeTreeCluster(-7, 2,   8, 2.4);  // riverside grove
+// Removed (-7, 2) riverside grove — trees were on the river near the
+// water-supply/stormwater pipes.
 makeTreeCluster(16, -13, 9, 2.8);  // east plain, south of mountain foot
 makeTreeCluster(0, -14,  8, 2.8);  // far south plain
 makeTreeCluster(-3, 16,  7, 2.6);  // north plain near town
 makeTreeCluster(10, -2,  8, 2.6);  // mid-east plain
 makeTreeCluster(8, -17,  6, 2.4);  // far south-east plain
 makeTreeCluster(-12, 4,  6, 2.2);  // west coast strip
+
+// Background forest tucked behind the mountain so the catchment feels alive
+// without blocking the rain, river source, or mountain label.
+function makeMountainBackForest() {
+  const centers = [
+    { x: 22, z: -13, count: 22, radius: 3.6 },
+    { x: 25, z: -8,  count: 20, radius: 3.3 },
+    { x: 20, z: -17, count: 16, radius: 3.0 },
+    { x: 28, z: -12, count: 16, radius: 2.8 },
+    { x: 17, z: -18, count: 12, radius: 2.6 },
+  ];
+  centers.forEach(cluster => {
+    const placed = [];
+    let attempts = 0;
+    while (placed.length < cluster.count && attempts < cluster.count * 10) {
+      attempts++;
+      const angle = Math.random() * Math.PI * 2;
+      const r = Math.sqrt(Math.random()) * cluster.radius;
+      const x = cluster.x + Math.cos(angle) * r;
+      const z = cluster.z + Math.sin(angle) * r;
+      const y = sampleTerrainY(x, z);
+      if (y < 0.2 || y > 7.2) continue;
+      if (placed.some(p => Math.hypot(p.x - x, p.z - z) < 0.85)) continue;
+      const scale = 0.45 + Math.random() * 0.45;
+      if (Math.random() < 0.7) makeTree(x, z, scale);
+      else makeDeciduousTree(x, z, scale * 0.9);
+      placed.push({ x, z });
+    }
+  });
+}
+makeMountainBackForest();
+
+function makeMountainSlopeTrees() {
+  const slopeSpots = [
+    { x: 13.0, z: -5.5, scale: 0.55 },
+    { x: 14.2, z: -8.2, scale: 0.62 },
+    { x: 15.6, z: -2.2, scale: 0.50 },
+    { x: 16.8, z: -10.8, scale: 0.48 },
+    { x: 18.8, z: -12.2, scale: 0.42 },
+    { x: 20.5, z: -10.0, scale: 0.46 },
+    { x: 22.0, z: -6.5, scale: 0.52 },
+    { x: 20.8, z: -2.6, scale: 0.45 },
+    { x: 17.6, z: 0.2, scale: 0.50 },
+    { x: 23.4, z: -3.0, scale: 0.44 },
+  ];
+  slopeSpots.forEach(({ x, z, scale }) => {
+    const y = sampleTerrainY(x, z);
+    if (y > 0.3 && y < 7.4) makeTree(x, z, scale);
+  });
+}
+makeMountainSlopeTrees();
 // ---------- DEFORESTATION PATCH ----------
-function buildDeforestation(cx, cz, width = 8, depth = 6) {
+function buildDeforestation(cx, cz, width = 8, depth = 6, addSurvivingTrees = true) {
   const yT = sampleTerrainY(cx, cz);
   // Scale all sub-counts down for smaller patches
   const scale = (width * depth) / 48;  // 1.0 for the default 8×6
-  // Bare exposed soil
-  const dirt = new THREE.Mesh(
-    new THREE.BoxGeometry(width, 0.10, depth),
-    new THREE.MeshStandardMaterial({ color: 0x8d4f33, roughness: 0.98 })
-  );
-  dirt.position.set(cx, yT + 0.05, cz);
+
+  // Bare exposed soil — uses a PlaneGeometry with displaced vertices so we
+  // can CARVE actual gully depressions into the surface (a box can't be
+  // hollowed without CSG). Each "gully" is a strip of vertices pushed
+  // down by `gully.depth`, with a falloff toward the edges.
+  const segX = Math.max(40, Math.floor(width * 8));
+  const segZ = Math.max(20, Math.floor(depth * 8));
+  const dirtGeo = new THREE.PlaneGeometry(width, depth, segX, segZ);
+  dirtGeo.rotateX(-Math.PI / 2);
+
+  // Define gully cross-sections (local x, z relative to patch center)
+  const gullies = [
+    { x: 0,            z: 0,          len: depth * 0.85, w: 0.55, depth: 0.32 }, // big central
+  ];
+  const sideCount = Math.max(2, Math.floor(width / 1.2));
+  for (let i = 0; i < sideCount; i++) {
+    const gx = -width / 2 + 0.5 + i * ((width - 1) / Math.max(1, sideCount - 1));
+    if (Math.abs(gx) < 0.7) continue;
+    gullies.push({
+      x: gx,
+      z: (Math.random() - 0.5) * 0.4,
+      len: depth * (0.55 + Math.random() * 0.25),
+      w: 0.18 + Math.random() * 0.08,
+      depth: 0.13 + Math.random() * 0.05,
+    });
+  }
+
+  const pos = dirtGeo.attributes.position;
+  const dirtColors = new Float32Array(pos.count * 3);
+  const baseR = 0.55, baseG = 0.31, baseB = 0.20;
+  const darkR = 0.05, darkG = 0.04, darkB = 0.025;
+  let maxDip = 0;
+  for (let i = 0; i < pos.count; i++) {
+    const vx = pos.getX(i), vz = pos.getZ(i);
+    let dip = 0;
+    for (const g of gullies) {
+      const dx = Math.abs(vx - g.x);
+      const dz = Math.abs(vz - g.z);
+      const halfW = g.w / 2, halfL = g.len / 2;
+      if (dx < halfW && dz < halfL) {
+        const fx = 1 - (dx / halfW);
+        const fz = Math.min(1, (1 - dz / halfL) * 2);
+        // Smooth bell-curve falloff
+        const factor = Math.pow(fx * fx * fz, 1.2);
+        dip = Math.min(dip, -g.depth * factor);
+      }
+    }
+    pos.setY(i, dip);
+    if (dip < maxDip) maxDip = dip;
+    // Darker color the deeper the depression goes
+    const t = Math.min(1, -dip / 0.35);
+    dirtColors[i * 3]     = baseR * (1 - t) + darkR * t;
+    dirtColors[i * 3 + 1] = baseG * (1 - t) + darkG * t;
+    dirtColors[i * 3 + 2] = baseB * (1 - t) + darkB * t;
+  }
+  dirtGeo.setAttribute('color', new THREE.BufferAttribute(dirtColors, 3));
+  dirtGeo.computeVertexNormals();
+  const dirt = new THREE.Mesh(dirtGeo, new THREE.MeshStandardMaterial({
+    vertexColors: true, roughness: 0.98, flatShading: false,
+  }));
+  dirt.position.set(cx, yT + 0.10, cz);
   dirt.receiveShadow = true;
+  dirt.castShadow = true;
   scene.add(dirt);
+  // Thin brown side walls so the strip still looks like raised soil from the side
+  const sideMat = new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 1 });
+  [
+    [width, 0.10, 0.04,  0, yT + 0.05,  depth / 2],
+    [width, 0.10, 0.04,  0, yT + 0.05, -depth / 2],
+    [0.04, 0.10, depth,  width / 2, yT + 0.05,  0],
+    [0.04, 0.10, depth, -width / 2, yT + 0.05,  0],
+  ].forEach(([w, h, d, x, y, z]) => {
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), sideMat);
+    wall.position.set(cx + x, y, cz + z);
+    scene.add(wall);
+  });
   // Darker scattered patches
   const patchCount = Math.max(8, Math.floor(22 * scale));
   for (let i = 0; i < patchCount; i++) {
@@ -684,32 +805,315 @@ function buildDeforestation(cx, cz, width = 8, depth = 6) {
     log.castShadow = true;
     scene.add(log);
   }
-  // Surviving live trees ringing the edges (scaled to patch size)
-  const hw = width / 2 - 0.4, hd = depth / 2 - 0.4;
-  const edgeOffsets = scale >= 0.6 ? [
-    [-hw, -hd * 0.7], [-hw, 0], [-hw, hd * 0.7],
-    [ hw, -hd * 0.7], [ hw, 0], [ hw, hd * 0.7],
-    [-hw * 0.55, -hd], [ hw * 0.55, -hd],
-    [-hw * 0.55,  hd], [ hw * 0.55,  hd],
-  ] : [
-    [-hw, 0], [hw, 0], [0, -hd], [0, hd],
-  ];
-  edgeOffsets.forEach(o => {
-    makeTree(cx + o[0] + (Math.random() - 0.5) * 0.4,
-             cz + o[1] + (Math.random() - 0.5) * 0.4,
-             0.65 + Math.random() * 0.3);
-  });
+  // Surviving live trees ringing the edges — skipped when addSurvivingTrees=false
+  // (e.g. for the eroded strip beside the NBS terrace, which should be fully bare)
+  if (addSurvivingTrees) {
+    const hw = width / 2 - 0.4, hd = depth / 2 - 0.4;
+    const edgeOffsets = scale >= 0.6 ? [
+      [-hw, -hd * 0.7], [-hw, 0], [-hw, hd * 0.7],
+      [ hw, -hd * 0.7], [ hw, 0], [ hw, hd * 0.7],
+      [-hw * 0.55, -hd], [ hw * 0.55, -hd],
+      [-hw * 0.55,  hd], [ hw * 0.55,  hd],
+    ] : [
+      [-hw, 0], [hw, 0], [0, -hd], [0, hd],
+    ];
+    edgeOffsets.forEach(o => {
+      makeTree(cx + o[0] + (Math.random() - 0.5) * 0.4,
+               cz + o[1] + (Math.random() - 0.5) * 0.4,
+               0.65 + Math.random() * 0.3);
+    });
+  }
 }
 buildDeforestation(8, -8, 8, 6);     // big patch on the central south plain
-buildDeforestation(3, 9.5, 12, 2.5); // long strip running along the south side of the road
+// Eroded bare strip beside the agroforestry terrace — no surviving trees,
+// fully bare ground so the contrast with NBS is clean.
+buildDeforestation(0.5, 17, 5, 2.5, false);
 
-// Riverbank trees — small clusters along the meandering main river bends
-makeTreeCluster(8, 4.8, 4, 1.4, 0.45, 0.8);    // north of bend 1
-makeTreeCluster(5.5, -3.8, 4, 1.4, 0.45, 0.8); // south of bend 2
-makeTreeCluster(2.5, 4.8, 4, 1.4, 0.45, 0.8);  // north of bend 3
-makeTreeCluster(-1, -3.8, 4, 1.4, 0.45, 0.8);  // south of bend 4
-makeTreeCluster(-3.5, 4.6, 4, 1.4, 0.45, 0.8); // north of bend 5
-makeTreeCluster(-6.5, -3.8, 4, 1.4, 0.45, 0.8);// south of bend 6
+// ---------- SOIL EROSION DEMO ----------
+// Without vegetation, bare slopes are scoured by runoff into gullies, and
+// the loosened soil washes into nearby water as a sediment plume. Compare
+// this against the Tied Ridges / agroforestry terrace and the ponds — the
+// nature-based solutions that keep water in place and prevent erosion.
+function buildErosionDemo(stripCx, stripCz, stripWidth = 5) {
+  // Erosion gullies — thin elongated dark trenches running downslope (south)
+  const gullyMat = new THREE.MeshStandardMaterial({
+    color: 0x3e2723, roughness: 1,
+  });
+  const innerMat = new THREE.MeshStandardMaterial({
+    color: 0x261812, roughness: 1,
+  });
+  const yT = sampleTerrainY(stripCx, stripCz);
+  const gullyCount = Math.max(4, Math.floor(stripWidth));
+  const gullySpacing = (stripWidth - 0.6) / Math.max(1, gullyCount - 1);
+  // Build a single gully with raised banks on either side framing a dark
+  // recess — that read clearly as a HOLE cut into the bare soil.
+  const lightBankMat = new THREE.MeshStandardMaterial({ color: 0xa1887f, roughness: 1 });
+  const trenchMat = new THREE.MeshStandardMaterial({ color: 0x0a0604, roughness: 1 });
+  const muddyWaterMat = new THREE.MeshStandardMaterial({
+    color: 0x5d4037, emissive: 0x3e2723, emissiveIntensity: 0.3, roughness: 0.5,
+  });
+
+  // Gully depressions are now carved INTO the dirt PlaneGeometry inside
+  // buildDeforestation(...) — see vertex displacement there. We just add
+  // a thin pool of muddy water at the bottom of the big central gully
+  // so the deepest point reads as having collected runoff.
+  const yDirt = yT + 0.10;
+  const muddyWater = new THREE.Mesh(
+    new THREE.BoxGeometry(0.45, 0.02, stripWidth * 0.55), muddyWaterMat
+  );
+  muddyWater.position.set(stripCx, yDirt - 0.15, stripCz);
+  muddyWater.rotation.y = Math.PI / 2; // align with z-axis
+  scene.add(muddyWater);
+  // Branching rills feeding the main gullies, like small erosion scars.
+  for (let i = 0; i < 12; i++) {
+    const gx = stripCx - 5.2 + Math.random() * 10.4;
+    const gz = stripCz - 0.9 + Math.random() * 1.5;
+    const branch = new THREE.Mesh(
+      new THREE.BoxGeometry(0.07, 0.045, 1.15 + Math.random() * 0.8),
+      innerMat
+    );
+    branch.position.set(gx, sampleTerrainY(gx, gz) + 0.19, gz);
+    branch.rotation.y = (Math.random() < 0.5 ? -1 : 1) * (0.35 + Math.random() * 0.35);
+    scene.add(branch);
+  }
+  // Thin muddy runoff streaks flowing out of the eroded bare-soil strip.
+  const runoffMat = new THREE.MeshStandardMaterial({
+    color: 0xa66a3f,
+    emissive: 0x6d4c41,
+    emissiveIntensity: 0.18,
+    transparent: true,
+    opacity: 0.82,
+    roughness: 0.7,
+  });
+  for (let i = 0; i < 7; i++) {
+    const sx = stripCx - 4.5 + i * 1.5;
+    const stream = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.035, 3.2), runoffMat);
+    stream.position.set(sx, sampleTerrainY(sx, stripCz + 1.8) + 0.13, stripCz + 1.8);
+    stream.rotation.y = (Math.random() - 0.5) * 0.25;
+    scene.add(stream);
+  }
+  // Sediment fan — a darker brown wedge spreading southward from the strip
+  const fanMat = new THREE.MeshStandardMaterial({
+    color: 0x6d4c41, transparent: true, opacity: 0.75, roughness: 1,
+  });
+  for (let i = 0; i < 5; i++) {
+    const fanX = stripCx - 4 + i * 2;
+    const fan = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.5, 4.5), fanMat
+    );
+    fan.rotation.x = -Math.PI / 2;
+    fan.position.set(fanX, sampleTerrainY(fanX, stripCz + 3) + 0.04, stripCz + 3);
+    scene.add(fan);
+  }
+  // Small "splash" of muddy water where the sediment fan meets the river
+  const muddySplash = new THREE.Mesh(
+    new THREE.CircleGeometry(2.0, 24),
+    new THREE.MeshStandardMaterial({
+      color: 0x8d6e63, transparent: true, opacity: 0.85,
+      emissive: 0x6d4c41, emissiveIntensity: 0.2, roughness: 0.5,
+    })
+  );
+  muddySplash.rotation.x = -Math.PI / 2;
+  muddySplash.position.set(stripCx, 0.20, stripCz + 5.2);
+  scene.add(muddySplash);
+  const plume = new THREE.Mesh(
+    new THREE.PlaneGeometry(5.0, 1.2),
+    new THREE.MeshStandardMaterial({
+      color: 0xb9834f,
+      emissive: 0x8d6e63,
+      emissiveIntensity: 0.2,
+      transparent: true,
+      opacity: 0.55,
+      roughness: 0.6,
+      side: THREE.DoubleSide,
+    })
+  );
+  plume.rotation.x = -Math.PI / 2;
+  plume.rotation.z = 0.2;
+  plume.position.set(stripCx + 1.6, 0.24, stripCz + 5.9);
+  scene.add(plume);
+}
+buildErosionDemo(0.5, 17, 5);
+buildErosionDemo(8, -8);
+
+// ---------- INUNDATION / FLOODING ZONE ----------
+// Shows where river water has overflowed its banks onto the surrounding
+// land, with floating debris and partially submerged vegetation.
+function buildFlooding(cx, cz, width = 5, depth = 3) {
+  const yT = sampleTerrainY(cx, cz);
+  // Radial alpha-gradient texture so the flood water fades into the grass
+  // at the edges instead of showing a hard rectangular boundary.
+  const alphaCv = document.createElement('canvas');
+  alphaCv.width = 128; alphaCv.height = 128;
+  const actx = alphaCv.getContext('2d');
+  const aGrad = actx.createRadialGradient(64, 64, 20, 64, 64, 62);
+  aGrad.addColorStop(0,    '#ffffff');
+  aGrad.addColorStop(0.55, '#dddddd');
+  aGrad.addColorStop(0.85, '#555555');
+  aGrad.addColorStop(1,    '#000000');
+  actx.fillStyle = aGrad;
+  actx.fillRect(0, 0, 128, 128);
+  // Slight noise distortion of the edge so it doesn't read as a circle either
+  actx.globalCompositeOperation = 'destination-in';
+  actx.beginPath();
+  for (let a = 0; a < Math.PI * 2; a += 0.1) {
+    const r = 60 + Math.sin(a * 3) * 6 + Math.cos(a * 5) * 5;
+    const x = 64 + Math.cos(a) * r;
+    const y = 64 + Math.sin(a) * r;
+    if (a === 0) actx.moveTo(x, y); else actx.lineTo(x, y);
+  }
+  actx.closePath();
+  actx.fillStyle = '#ffffff';
+  actx.fill();
+  actx.globalCompositeOperation = 'source-over';
+  const floodAlpha = new THREE.CanvasTexture(alphaCv);
+
+  // Flood-water surface — slightly turbid, semi-transparent
+  const water = new THREE.Mesh(
+    new THREE.PlaneGeometry(width, depth, 24, 14),
+    new THREE.MeshStandardMaterial({
+      color: 0x4a7c98,
+      emissive: 0x29638a,
+      emissiveIntensity: 0.25,
+      roughness: 0.3,
+      metalness: 0.05,
+      transparent: true,
+      alphaMap: floodAlpha,
+      alphaTest: 0.05,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    })
+  );
+  water.rotation.x = -Math.PI / 2;
+  water.position.set(cx, yT + 0.20, cz);
+  water.receiveShadow = true;
+  scene.add(water);
+  // Floating debris (small flat planks)
+  const debrisMat = new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 0.95 });
+  for (let i = 0; i < 7; i++) {
+    const d = new THREE.Mesh(
+      new THREE.BoxGeometry(0.35 + Math.random() * 0.25, 0.04, 0.08),
+      debrisMat
+    );
+    d.position.set(
+      cx + (Math.random() - 0.5) * width * 0.85,
+      yT + 0.235,
+      cz + (Math.random() - 0.5) * depth * 0.85
+    );
+    d.rotation.y = Math.random() * Math.PI * 2;
+    d.castShadow = true;
+    scene.add(d);
+  }
+  // Partially submerged grass tufts (tips poke above water)
+  const tuftMat = new THREE.MeshStandardMaterial({ color: 0x558b2f, roughness: 0.9 });
+  for (let i = 0; i < 10; i++) {
+    const tuft = new THREE.Mesh(
+      new THREE.ConeGeometry(0.13, 0.35, 5),
+      tuftMat
+    );
+    tuft.position.set(
+      cx + (Math.random() - 0.5) * width * 0.8,
+      yT + 0.32,
+      cz + (Math.random() - 0.5) * depth * 0.8
+    );
+    scene.add(tuft);
+  }
+  // A couple of half-sunken reeds
+  const reedMat = new THREE.MeshStandardMaterial({ color: 0x7cb342, roughness: 0.85 });
+  for (let i = 0; i < 5; i++) {
+    const reed = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.04, 0.04, 0.6, 5),
+      reedMat
+    );
+    reed.position.set(
+      cx + (Math.random() - 0.5) * width * 0.75,
+      yT + 0.45,
+      cz + (Math.random() - 0.5) * depth * 0.75
+    );
+    reed.rotation.z = (Math.random() - 0.5) * 0.4;
+    scene.add(reed);
+  }
+}
+// Flooded zone south of the river meander, where water would naturally back up
+buildFlooding(-1, -3.5, 5.5, 3);
+
+function buildErosionHole(x, z, radius = 0.9) {
+  const y = sampleTerrainY(x, z);
+  const pit = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius, radius * 0.55, 0.45, 28),
+    new THREE.MeshStandardMaterial({ color: 0x1b100b, roughness: 1 })
+  );
+  pit.position.set(x, y + 0.08, z);
+  pit.scale.y = 0.35;
+  pit.receiveShadow = true;
+  scene.add(pit);
+
+  const rim = new THREE.Mesh(
+    new THREE.TorusGeometry(radius * 1.02, 0.12, 8, 28),
+    new THREE.MeshStandardMaterial({ color: 0xb36b35, roughness: 1 })
+  );
+  rim.rotation.x = Math.PI / 2;
+  rim.position.set(x, y + 0.27, z);
+  scene.add(rim);
+
+  const shadow = new THREE.Mesh(
+    new THREE.CircleGeometry(radius * 0.62, 24),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.45 })
+  );
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.set(x, y + 0.29, z);
+  scene.add(shadow);
+}
+buildErosionHole(0.5, 17.0, 1.05);
+
+function buildLargeGully(x, z, length = 4.4) {
+  const y = sampleTerrainY(x, z);
+  const group = new THREE.Group();
+  const cutMat = new THREE.MeshStandardMaterial({ color: 0x140b07, roughness: 1 });
+  const bankMat = new THREE.MeshStandardMaterial({ color: 0xb36b35, roughness: 1 });
+  const dampMat = new THREE.MeshStandardMaterial({
+    color: 0x6d4c41,
+    emissive: 0x3e2723,
+    emissiveIntensity: 0.18,
+    roughness: 0.85,
+  });
+
+  const cut = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.16, length), cutMat);
+  cut.position.y = 0.04;
+  group.add(cut);
+
+  [-1, 1].forEach(side => {
+    const bank = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.3, length * 0.95), bankMat);
+    bank.position.set(side * 0.53, 0.14, 0);
+    bank.rotation.z = side * 0.28;
+    bank.castShadow = true;
+    group.add(bank);
+  });
+
+  const mouth = new THREE.Mesh(new THREE.ConeGeometry(0.75, 1.05, 18), cutMat);
+  mouth.position.set(0, 0.05, length * 0.48);
+  mouth.rotation.x = Math.PI / 2;
+  mouth.scale.set(1.3, 0.7, 1);
+  group.add(mouth);
+
+  const wetLine = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.04, length * 0.82), dampMat);
+  wetLine.position.y = 0.18;
+  group.add(wetLine);
+
+  group.position.set(x, y + 0.24, z);
+  group.rotation.y = -0.08;
+  scene.add(group);
+}
+buildLargeGully(0.5, 17.6, 4.8);
+
+// Riverbank tree clusters — placed FAR from the river path (3+ units
+// perpendicular offset) so trees don't sit on the water.
+makeTreeCluster(8.5,  6.0,  4, 1.0, 0.45, 0.75);  // north of bend 1
+makeTreeCluster(5.5, -5.5,  4, 1.0, 0.45, 0.75);  // south of bend 2
+makeTreeCluster(2.5,  6.0,  4, 1.0, 0.45, 0.75);  // north of bend 3
+makeTreeCluster(-0.5,-5.5,  4, 1.0, 0.45, 0.75);  // south of bend 4
+makeTreeCluster(-3.5, 5.8,  4, 1.0, 0.45, 0.75);  // north of bend 5
+makeTreeCluster(-9.0, 3.0,  4, 1.0, 0.45, 0.75);  // between bend 6 and mouth
 // Trees around the pond/channel network
 makeTreeCluster(15, 20, 5, 1.5, 0.5, 0.85);   // north of POND1
 makeTreeCluster(19, 14, 4, 1.3, 0.5, 0.85);   // south between ponds
@@ -730,7 +1134,6 @@ for (let i = 0; i < 6; i++) {
 // to a target height, then offset so its bottom sits at y=0 within the
 // wrapper. The wrapper is what we place + spin in world space.
 const gltfLoader = new GLTFLoader();
-let cowMixer = null;
 
 function placeModel(gltf, { worldX, worldZ, targetH, targetSize, yaw = 0, zUp = true }) {
   const wrapper = new THREE.Group();
@@ -767,9 +1170,7 @@ function placeModel(gltf, { worldX, worldZ, targetH, targetSize, yaw = 0, zUp = 
 // Field garden — already Y-up (binary .glb usually is); scale by footprint.
 // Loaded twice (rather than cloned) so each instance gets a clean parse —
 // Object3D.clone() drops some nested skinned/material refs in this model.
-gltfLoader.load('models/field_garden.glb', (gltf) => {
-  placeModel(gltf, { worldX: -2, worldZ: -10, targetSize: 14, yaw: 0.3, zUp: false });
-}, undefined, (err) => console.warn('field_garden #1 load failed', err));
+// (field_garden.glb removed — replaced by procedural rice paddies below)
 
 
 // Procedural village — replaces the Morning Town glTF
@@ -981,44 +1382,169 @@ function buildRoad(fromX, fromZ, toX, toZ, width = 1.6) {
   const length = Math.sqrt(dx * dx + dz * dz);
   const angle = Math.atan2(dz, dx);
   const midX = (fromX + toX) / 2, midZ = (fromZ + toZ) / 2;
-  const roadMat = new THREE.MeshStandardMaterial({ color: 0x37474f, roughness: 0.9 });
-  const road = new THREE.Mesh(new THREE.BoxGeometry(length, 0.06, width), roadMat);
-  road.position.set(midX, sampleTerrainY(midX, midZ) + 0.08, midZ);
+  const yMid = sampleTerrainY(midX, midZ);
+
+  // Tarmac (very dark, low roughness for slight sheen)
+  const roadMat = new THREE.MeshStandardMaterial({
+    color: 0x1c1c1c, roughness: 0.75, metalness: 0.05,
+  });
+  const road = new THREE.Mesh(new THREE.BoxGeometry(length, 0.07, width), roadMat);
+  road.position.set(midX, yMid + 0.09, midZ);
   road.rotation.y = -angle;
   road.receiveShadow = true;
   scene.add(road);
+
+  // White solid edge lines on both sides — classic painted lane edges
+  const edgeMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff, emissive: 0xeceff1, emissiveIntensity: 0.15, roughness: 0.6,
+  });
+  [-1, 1].forEach(side => {
+    const off = (width / 2 - 0.08) * side;
+    const edge = new THREE.Mesh(new THREE.BoxGeometry(length, 0.04, 0.08), edgeMat);
+    edge.position.set(
+      midX - Math.sin(angle) * off,
+      yMid + 0.13,
+      midZ + Math.cos(angle) * off
+    );
+    edge.rotation.y = -angle;
+    scene.add(edge);
+  });
+
   // Yellow dashed center line
   const dashMat = new THREE.MeshStandardMaterial({
-    color: 0xfdd835, emissive: 0xfbc02d, emissiveIntensity: 0.3,
+    color: 0xfdd835, emissive: 0xfbc02d, emissiveIntensity: 0.35,
   });
   const dashes = Math.max(3, Math.floor(length / 1.5));
   for (let i = 0; i < dashes; i++) {
     const t = (i + 0.3) / dashes;
     const x = fromX + dx * t, z = fromZ + dz * t;
-    const dash = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.04, 0.15), dashMat);
-    dash.position.set(x, sampleTerrainY(x, z) + 0.13, z);
+    const dash = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.04, 0.13), dashMat);
+    dash.position.set(x, sampleTerrainY(x, z) + 0.14, z);
     dash.rotation.y = -angle;
     scene.add(dash);
   }
-  // Shoulders (lighter strip along edges)
+
+  // Beige gravel shoulders just outside the white edge lines
   const shoulderMat = new THREE.MeshStandardMaterial({ color: 0xa1887f, roughness: 1.0 });
   [-1, 1].forEach(side => {
     const shoulder = new THREE.Mesh(
-      new THREE.BoxGeometry(length, 0.05, 0.25), shoulderMat
+      new THREE.BoxGeometry(length, 0.05, 0.28), shoulderMat
     );
-    const off = (width / 2 + 0.12) * side;
+    const off = (width / 2 + 0.16) * side;
     shoulder.position.set(
       midX - Math.sin(angle) * off,
-      sampleTerrainY(midX, midZ) + 0.07,
+      yMid + 0.07,
       midZ + Math.cos(angle) * off
     );
     shoulder.rotation.y = -angle;
+    shoulder.receiveShadow = true;
     scene.add(shoulder);
   });
 }
 
 // Main road: village east edge → industrial complex west edge
 buildRoad(-4, 11, 12, 11);
+// Roads around the coastal city cluster (towers at x≈-12, z≈11-15)
+buildRoad(-14.5, 10, -14.5, 16, 1.3);   // west avenue (between palms and city)
+buildRoad(-9.5,  10, -9.5,  16, 1.3);   // east avenue (between city and village)
+buildRoad(-14.5, 16, -9.5,  16);        // north cross-street capping the loop
+buildRoad(-9.5, 10, -4, 11, 1.35);      // connector from coastal city to main road
+buildRoad(12, 8.8, -9.5, 10, 1.25);     // industrial service road to coastal city
+buildRoad(-10.8, -9.4, -9.5, 10, 1.25); // coastal city street link to city road
+buildRoad(-7.4, 10.6, -7.2, 7.4, 0.9);  // school access road
+
+// ---------- CARS ----------
+function makeCar(color) {
+  const g = new THREE.Group();
+  const bodyMat = new THREE.MeshStandardMaterial({
+    color, roughness: 0.4, metalness: 0.3,
+  });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.32, 0.5), bodyMat);
+  body.position.y = 0.26;
+  body.castShadow = true;
+  g.add(body);
+  // Cabin / roof
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.26, 0.46), bodyMat);
+  cabin.position.set(-0.08, 0.55, 0);
+  cabin.castShadow = true;
+  g.add(cabin);
+  // Window strip (dark glass)
+  const winMat = new THREE.MeshStandardMaterial({
+    color: 0x263238, metalness: 0.7, roughness: 0.15,
+    emissive: 0x1a237e, emissiveIntensity: 0.2,
+  });
+  const windows = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.18, 0.48), winMat);
+  windows.position.set(-0.08, 0.56, 0);
+  g.add(windows);
+  // Headlights (front, small white emissive dots)
+  const lightMat = new THREE.MeshStandardMaterial({
+    color: 0xfff59d, emissive: 0xfff59d, emissiveIntensity: 0.9,
+  });
+  [[-0.18, 0.27, 0.48], [0.18, 0.27, 0.48]].forEach(() => {});
+  [[0.47, 0.28, 0.18], [0.47, 0.28, -0.18]].forEach(p => {
+    const hl = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 6), lightMat);
+    hl.position.set(p[0], p[1], p[2]);
+    g.add(hl);
+  });
+  // Tail lights (red)
+  const tailMat = new THREE.MeshStandardMaterial({
+    color: 0xe53935, emissive: 0xc62828, emissiveIntensity: 0.7,
+  });
+  [[-0.47, 0.28, 0.18], [-0.47, 0.28, -0.18]].forEach(p => {
+    const tl = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 6), tailMat);
+    tl.position.set(p[0], p[1], p[2]);
+    g.add(tl);
+  });
+  // Wheels
+  const wheelMat = new THREE.MeshStandardMaterial({ color: 0x1c1c1c, roughness: 0.9 });
+  [[-0.3, 0.13, 0.27], [-0.3, 0.13, -0.27], [0.3, 0.13, 0.27], [0.3, 0.13, -0.27]]
+    .forEach(p => {
+      const w = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.13, 0.13, 0.09, 12), wheelMat
+      );
+      w.position.set(p[0], p[1], p[2]);
+      w.rotation.x = Math.PI / 2;
+      g.add(w);
+    });
+  return g;
+}
+
+// Moving cars — each follows a closed waypoint loop around the city
+const movingCars = [];
+function spawnCar(color, path, speed = 1.6, offset = 0) {
+  const g = makeCar(color);
+  g.userData = { path, speed, progress: offset };
+  scene.add(g);
+  movingCars.push(g);
+}
+
+// City loop path (rectangle around the towers, traversed clockwise)
+const cityLoop = [
+  { x: -9.5, z: 16 },
+  { x: -14.5, z: 16 },
+  { x: -14.5, z: 10 },
+  { x: -9.5, z: 10 },
+];
+spawnCar(0xd32f2f, cityLoop, 1.7, 0.2);
+spawnCar(0x1e88e5, cityLoop, 1.5, 1.6);
+spawnCar(0xfdd835, cityLoop, 1.9, 3.0);
+// One car on the village-to-industrial east-west road (oscillates back and forth)
+const eastWestPath = [
+  { x: -4, z: 11 },
+  { x: 12, z: 11 },
+];
+spawnCar(0x43a047, eastWestPath, 2.2, 0);
+
+// Parked cars along the road shoulders
+function parkCar(x, z, yaw, color) {
+  const g = makeCar(color);
+  g.position.set(x, sampleTerrainY(x, z) + 0.08, z);
+  g.rotation.y = yaw;
+  scene.add(g);
+}
+parkCar(-11.0, 9.6, Math.PI / 2, 0x7b1fa2);
+parkCar(-13.2, 16.4, 0, 0x00897b);
+parkCar(0, 11.6, 0, 0xef6c00);
 // Short connector: industrial → dam on river
 buildRoad(15, 8.5, 10, 1.5, 1.3);
 
@@ -1176,6 +1702,525 @@ function buildLighthouse(x, z) {
 }
 buildLighthouse(-9, 18);  // on the western coast strip near terrain north corner
 
+// ---------- COASTAL FEATURES (beach, shells, seaweed, birds) ----------
+// Sandy beach strip along the coastline — sits at the cliff edge where
+// land meets ocean basin (x ≈ -17) so it reads as a real shoreline.
+const BEACH_CX = -16.8;
+function buildBeach() {
+  const sand = new THREE.Mesh(
+    new THREE.BoxGeometry(2.4, 0.05, 38),
+    new THREE.MeshStandardMaterial({ color: 0xf4e4b8, roughness: 1 })
+  );
+  sand.position.set(BEACH_CX, 0.30, 0);
+  sand.receiveShadow = true;
+  scene.add(sand);
+
+  const foam = new THREE.Mesh(
+    new THREE.BoxGeometry(0.18, 0.035, 37),
+    new THREE.MeshStandardMaterial({
+      color: 0xe3f2fd,
+      emissive: 0xbbdefb,
+      emissiveIntensity: 0.35,
+      roughness: 0.6,
+    })
+  );
+  foam.position.set(-18.05, 0.34, 0);
+  scene.add(foam);
+
+  // Darker damp-sand patches scattered across the beach
+  for (let i = 0; i < 28; i++) {
+    const p = new THREE.Mesh(
+      new THREE.CircleGeometry(0.22 + Math.random() * 0.18, 10),
+      new THREE.MeshStandardMaterial({ color: 0xddc188, roughness: 1 })
+    );
+    p.rotation.x = -Math.PI / 2;
+    p.position.set(BEACH_CX + (Math.random() - 0.5) * 2.1, 0.33, -18 + Math.random() * 36);
+    scene.add(p);
+  }
+}
+buildBeach();
+
+// Seashells scattered on the sand
+function buildShells() {
+  const shellColors = [0xffffff, 0xffe0b2, 0xf8bbd0, 0xfff3e0, 0xffccbc];
+  for (let i = 0; i < 32; i++) {
+    const color = shellColors[Math.floor(Math.random() * shellColors.length)];
+    const shell = new THREE.Mesh(
+      new THREE.ConeGeometry(0.14, 0.12, 7),
+      new THREE.MeshStandardMaterial({
+        color, roughness: 0.45, metalness: 0.15,
+      })
+    );
+    shell.position.set(
+      BEACH_CX + (Math.random() - 0.5) * 2.1,
+      0.36,
+      -18 + Math.random() * 36
+    );
+    shell.rotation.x = Math.PI;
+    shell.rotation.y = Math.random() * Math.PI * 2;
+    shell.scale.set(0.9 + Math.random() * 0.3, 0.5 + Math.random() * 0.4, 0.9 + Math.random() * 0.3);
+    shell.castShadow = true;
+    scene.add(shell);
+  }
+}
+buildShells();
+
+// Small starfish on the upper beach for extra coastal life.
+function buildStarfish() {
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0xff7043,
+    roughness: 0.8,
+    emissive: 0xbf360c,
+    emissiveIntensity: 0.15,
+  });
+  for (let i = 0; i < 8; i++) {
+    const star = new THREE.Group();
+    for (let arm = 0; arm < 5; arm++) {
+      const ray = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.42, 6), mat);
+      ray.position.y = 0.02;
+      ray.rotation.z = Math.PI / 2;
+      ray.rotation.y = (arm / 5) * Math.PI * 2;
+      ray.position.x = Math.cos(ray.rotation.y) * 0.13;
+      ray.position.z = Math.sin(ray.rotation.y) * 0.13;
+      star.add(ray);
+    }
+    star.position.set(
+      BEACH_CX + (Math.random() - 0.5) * 1.6,
+      0.38,
+      -16 + Math.random() * 32
+    );
+    star.rotation.y = Math.random() * Math.PI * 2;
+    scene.add(star);
+  }
+}
+buildStarfish();
+
+// Small beach visitors for scale and liveliness.
+function buildBeachPerson(x, z, shirtColor = 0xff7043) {
+  const g = new THREE.Group();
+  const skinMat = new THREE.MeshStandardMaterial({ color: 0xc68642, roughness: 0.7 });
+  const shirtMat = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.75 });
+  const shortsMat = new THREE.MeshStandardMaterial({ color: 0x1565c0, roughness: 0.8 });
+
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.18, 0.58, 10), shirtMat);
+  body.position.y = 0.68;
+  body.castShadow = true;
+  g.add(body);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.17, 12, 10), skinMat);
+  head.position.y = 1.08;
+  head.castShadow = true;
+  g.add(head);
+
+  const shorts = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.18, 0.22), shortsMat);
+  shorts.position.y = 0.34;
+  g.add(shorts);
+
+  [-0.09, 0.09].forEach(dx => {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.04, 0.34, 8), skinMat);
+    leg.position.set(dx, 0.12, 0);
+    leg.castShadow = true;
+    g.add(leg);
+  });
+
+  [-1, 1].forEach(side => {
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.03, 0.42, 8), skinMat);
+    arm.position.set(side * 0.22, 0.68, 0);
+    arm.rotation.z = side * 0.35;
+    arm.castShadow = true;
+    g.add(arm);
+  });
+
+  g.position.set(x, 0.33, z);
+  g.rotation.y = Math.random() * Math.PI * 2;
+  scene.add(g);
+  return g;
+}
+
+function buildBeachPeople() {
+  const people = [
+    { x: -16.2, z: -13.5, color: 0xff7043 },
+    { x: -16.1, z: -8.2,  color: 0x66bb6a },
+    { x: -17.2, z: -3.2,  color: 0xffca28 },
+    { x: -16.3, z: 7.6,   color: 0xab47bc },
+    { x: -17.1, z: 13.4,  color: 0x29b6f6 },
+  ];
+  people.forEach(p => buildBeachPerson(p.x, p.z, p.color));
+}
+buildBeachPeople();
+
+function buildBeachUmbrella(x, z, color = 0xef5350) {
+  const g = new THREE.Group();
+  const pole = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.035, 0.045, 1.05, 10),
+    new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 0.8 })
+  );
+  pole.position.y = 0.58;
+  pole.castShadow = true;
+  g.add(pole);
+
+  const canopy = new THREE.Mesh(
+    new THREE.ConeGeometry(0.82, 0.42, 18, 1, true),
+    new THREE.MeshStandardMaterial({
+      color,
+      roughness: 0.65,
+      side: THREE.DoubleSide,
+    })
+  );
+  canopy.position.y = 1.18;
+  canopy.rotation.y = Math.PI / 18;
+  canopy.castShadow = true;
+  g.add(canopy);
+
+  const stripeMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    roughness: 0.7,
+    side: THREE.DoubleSide,
+  });
+  for (let i = 0; i < 3; i++) {
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.03, 1.35), stripeMat);
+    stripe.position.y = 1.04;
+    stripe.rotation.y = (i / 3) * Math.PI;
+    stripe.castShadow = true;
+    g.add(stripe);
+  }
+
+  g.position.set(x, 0.32, z);
+  g.rotation.y = Math.random() * Math.PI * 2;
+  scene.add(g);
+  return g;
+}
+
+function buildBeachUmbrellas() {
+  buildBeachUmbrella(-16.15, -11.2, 0xef5350);
+  buildBeachUmbrella(-17.15, 2.5, 0x29b6f6);
+  buildBeachUmbrella(-16.25, 11.2, 0xffca28);
+}
+buildBeachUmbrellas();
+
+// Seaweed clusters in shallow water just offshore
+const seaweedClusters = [];
+function buildSeaweed() {
+  const greens = [0x2e7d32, 0x388e3c, 0x4caf50];
+  for (let i = 0; i < 12; i++) {
+    const cluster = new THREE.Group();
+    const colorIdx = Math.floor(Math.random() * greens.length);
+    const mat = new THREE.MeshStandardMaterial({
+      color: greens[colorIdx], roughness: 0.9, side: THREE.DoubleSide,
+    });
+    const fronds = 4 + Math.floor(Math.random() * 3);
+    for (let j = 0; j < fronds; j++) {
+      const frond = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.14, 0.55 + Math.random() * 0.25), mat
+      );
+      frond.position.set(
+        (Math.random() - 0.5) * 0.5,
+        0.28 + Math.random() * 0.05,
+        (Math.random() - 0.5) * 0.5
+      );
+      frond.rotation.y = Math.random() * Math.PI;
+      frond.userData.basePhase = Math.random() * Math.PI * 2;
+      cluster.add(frond);
+    }
+    // Seaweed now lives in the ocean basin (x < -18) west of the beach,
+    // so the fronds sit in real water rather than on grass.
+    cluster.position.set(
+      -22 + Math.random() * 3,
+      -1.4,                       // basin floor depth
+      -17 + Math.random() * 34
+    );
+    scene.add(cluster);
+    seaweedClusters.push(cluster);
+  }
+}
+buildSeaweed();
+
+// Seagulls flying in circles above the ocean
+const birdMeshes = [];
+function makeBird(centerX, centerZ, height, radius, speed, wingColor = 0xffffff, bodyColor = 0xeceff1) {
+  const g = new THREE.Group();
+  const wingMat = new THREE.MeshStandardMaterial({
+    color: wingColor, roughness: 0.8, side: THREE.DoubleSide,
+  });
+  const bodyMat = new THREE.MeshStandardMaterial({
+    color: bodyColor, roughness: 0.7,
+  });
+  // Two flat triangular wings rooted at the body
+  function makeWing(side) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute([
+      0, 0, 0,  side * 0.55, 0.05, 0.18,  side * 0.55, 0.05, -0.18,
+    ], 3));
+    geo.computeVertexNormals();
+    return new THREE.Mesh(geo, wingMat);
+  }
+  const leftWing = makeWing(-1);
+  const rightWing = makeWing(1);
+  g.add(leftWing);
+  g.add(rightWing);
+  // Tiny body sphere
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), bodyMat);
+  g.add(body);
+  g.userData = {
+    cx: centerX, cz: centerZ, y: height,
+    radius, speed,
+    phase: Math.random() * Math.PI * 2,
+    leftWing, rightWing,
+  };
+  scene.add(g);
+  birdMeshes.push(g);
+  return g;
+}
+makeBird(-22, 0,   12, 8.0, 0.45);
+makeBird(-26, 6,   10, 6.0, 0.55);
+makeBird(-24, -7,  14, 7.0, 0.40);
+makeBird(-19, 11,  11, 5.0, 0.50);
+makeBird(-28, 3,   13, 4.5, 0.60);
+makeBird(22, -12,  15, 4.0, 0.42, 0x6d4c41, 0x8d6e63);
+makeBird(25, -8,   13, 3.5, 0.48, 0x5d4037, 0x795548);
+
+// ---------- SKYSCRAPER CLUSTER ----------
+// Coastal city skyline tucked between the beach and the village.
+function buildSkyscraper(x, z, width, depth, height, baseColor, accentColor) {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(width, height, depth),
+    new THREE.MeshStandardMaterial({
+      color: baseColor, roughness: 0.45, metalness: 0.25,
+    })
+  );
+  body.position.y = height / 2;
+  body.castShadow = true;
+  body.receiveShadow = true;
+  g.add(body);
+  const winMat = new THREE.MeshStandardMaterial({
+    color: 0x4fc3f7,
+    emissive: 0x01579b,
+    emissiveIntensity: 0.5,
+    metalness: 0.7,
+    roughness: 0.15,
+  });
+  const floors = Math.max(4, Math.floor(height / 0.55));
+  for (let f = 1; f < floors; f++) {
+    if (f % 2 === 0) continue;
+    const strip = new THREE.Mesh(
+      new THREE.BoxGeometry(width + 0.02, 0.18, depth + 0.02),
+      winMat
+    );
+    strip.position.y = f * (height / floors);
+    g.add(strip);
+  }
+  const cap = new THREE.Mesh(
+    new THREE.BoxGeometry(width * 0.85, 0.2, depth * 0.85),
+    new THREE.MeshStandardMaterial({ color: accentColor, roughness: 0.7 })
+  );
+  cap.position.y = height + 0.1;
+  g.add(cap);
+  g.position.set(x, sampleTerrainY(x, z), z);
+  scene.add(g);
+  return g;
+}
+
+function buildAntenna(x, z, baseHeight) {
+  const a = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.04, 0.04, 1.4, 6),
+    new THREE.MeshStandardMaterial({
+      color: 0x37474f, emissive: 0xff5722, emissiveIntensity: 0.3,
+    })
+  );
+  a.position.set(x, sampleTerrainY(x, z) + baseHeight + 0.9, z);
+  scene.add(a);
+}
+
+// Cluster of 5 towers between palms (x≈-14) and village (x>-10)
+buildSkyscraper(-12.5, 11.0, 1.6, 1.6, 5.5, 0xeceff1, 0x546e7a);
+buildSkyscraper(-13.0, 13.0, 1.4, 1.4, 7.5, 0xb0bec5, 0x37474f);
+buildSkyscraper(-11.5, 12.0, 1.3, 1.3, 4.8, 0xcfd8dc, 0x607d8b);
+buildSkyscraper(-12.0, 14.5, 1.5, 1.5, 6.2, 0xeceff1, 0x455a64);
+buildSkyscraper(-11.0, 13.8, 1.2, 1.2, 4.2, 0xb0bec5, 0x546e7a);
+buildAntenna(-13.0, 13.0, 7.5);
+
+// Simple wildlife near the mountain forest.
+function buildDeer(x, z, scale = 1) {
+  const g = new THREE.Group();
+  const furMat = new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 0.85 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x4e342e, roughness: 0.9 });
+  const antlerMat = new THREE.MeshStandardMaterial({ color: 0xd7ccc8, roughness: 0.8 });
+
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.48, 14, 10), furMat);
+  body.scale.set(1.55, 0.72, 0.78);
+  body.position.y = 0.72;
+  body.castShadow = true;
+  g.add(body);
+
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 0.55, 8), furMat);
+  neck.position.set(0.55, 1.0, 0);
+  neck.rotation.z = -0.55;
+  neck.castShadow = true;
+  g.add(neck);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 8), furMat);
+  head.scale.set(1.15, 0.8, 0.75);
+  head.position.set(0.88, 1.2, 0);
+  head.castShadow = true;
+  g.add(head);
+
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), darkMat);
+  nose.position.set(1.08, 1.18, 0);
+  g.add(nose);
+
+  [-0.42, -0.12, 0.32, 0.62].forEach(dx => {
+    [-0.2, 0.2].forEach(dz => {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 0.72, 8), darkMat);
+      leg.position.set(dx, 0.32, dz);
+      leg.castShadow = true;
+      g.add(leg);
+    });
+  });
+
+  [-1, 1].forEach(side => {
+    const antler = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.02, 0.45, 6), antlerMat);
+    antler.position.set(0.88, 1.48, side * 0.08);
+    antler.rotation.z = side * 0.35;
+    antler.castShadow = true;
+    g.add(antler);
+  });
+
+  g.position.set(x, sampleTerrainY(x, z), z);
+  g.scale.setScalar(scale);
+  g.rotation.y = -0.8 + Math.random() * 0.5;
+  scene.add(g);
+  return g;
+}
+
+function buildRabbit(x, z, scale = 1) {
+  const g = new THREE.Group();
+  const furMat = new THREE.MeshStandardMaterial({ color: 0xd7ccc8, roughness: 0.9 });
+  const earMat = new THREE.MeshStandardMaterial({ color: 0xf8bbd0, roughness: 0.8 });
+
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 8), furMat);
+  body.scale.set(1.35, 0.8, 0.9);
+  body.position.y = 0.22;
+  body.castShadow = true;
+  g.add(body);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), furMat);
+  head.position.set(0.22, 0.34, 0);
+  head.castShadow = true;
+  g.add(head);
+
+  [-0.06, 0.06].forEach(dz => {
+    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.34, 8), earMat);
+    ear.position.set(0.24, 0.6, dz);
+    ear.rotation.z = -0.18;
+    ear.castShadow = true;
+    g.add(ear);
+  });
+
+  const tail = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), furMat);
+  tail.position.set(-0.28, 0.28, 0);
+  g.add(tail);
+
+  g.position.set(x, sampleTerrainY(x, z), z);
+  g.scale.setScalar(scale);
+  g.rotation.y = Math.random() * Math.PI * 2;
+  scene.add(g);
+  return g;
+}
+
+function buildBoar(x, z, scale = 1) {
+  const g = new THREE.Group();
+  const furMat = new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.9 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x3e2723, roughness: 1 });
+  const tuskMat = new THREE.MeshStandardMaterial({ color: 0xfff8e1, roughness: 0.7 });
+
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.36, 14, 10), furMat);
+  body.scale.set(1.65, 0.82, 0.85);
+  body.position.y = 0.45;
+  body.castShadow = true;
+  g.add(body);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 8), furMat);
+  head.scale.set(1.15, 0.85, 0.8);
+  head.position.set(0.55, 0.55, 0);
+  head.castShadow = true;
+  g.add(head);
+
+  const snout = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 0.2, 8), darkMat);
+  snout.position.set(0.78, 0.53, 0);
+  snout.rotation.z = Math.PI / 2;
+  g.add(snout);
+
+  [-0.36, -0.08, 0.28, 0.52].forEach(dx => {
+    [-0.16, 0.16].forEach(dz => {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 0.38, 8), darkMat);
+      leg.position.set(dx, 0.16, dz);
+      leg.castShadow = true;
+      g.add(leg);
+    });
+  });
+
+  [-1, 1].forEach(side => {
+    const tusk = new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.22, 8), tuskMat);
+    tusk.position.set(0.75, 0.46, side * 0.09);
+    tusk.rotation.z = -Math.PI / 2;
+    g.add(tusk);
+  });
+
+  g.position.set(x, sampleTerrainY(x, z), z);
+  g.scale.setScalar(scale);
+  g.rotation.y = -0.9 + Math.random() * 0.5;
+  scene.add(g);
+  return g;
+}
+
+function buildForestBirdPerch(x, z, scale = 1) {
+  const g = new THREE.Group();
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x1565c0, roughness: 0.75 });
+  const wingMat = new THREE.MeshStandardMaterial({ color: 0xffca28, roughness: 0.8 });
+
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8), bodyMat);
+  body.scale.set(1.15, 0.8, 0.8);
+  body.position.y = 1.0;
+  g.add(body);
+
+  [-1, 1].forEach(side => {
+    const wing = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), wingMat);
+    wing.scale.set(0.6, 0.25, 1.2);
+    wing.position.set(0, 1.0, side * 0.12);
+    g.add(wing);
+  });
+
+  const beak = new THREE.Mesh(
+    new THREE.ConeGeometry(0.035, 0.12, 8),
+    new THREE.MeshStandardMaterial({ color: 0xff9800, roughness: 0.8 })
+  );
+  beak.position.set(0.14, 1.0, 0);
+  beak.rotation.z = -Math.PI / 2;
+  g.add(beak);
+
+  g.position.set(x, sampleTerrainY(x, z), z);
+  g.scale.setScalar(scale);
+  g.rotation.y = Math.random() * Math.PI * 2;
+  scene.add(g);
+  return g;
+}
+
+buildDeer(22.5, -14.2, 0.9);
+buildDeer(24.5, -10.5, 0.75);
+buildDeer(27.2, -12.8, 0.7);
+buildDeer(18.6, -16.5, 0.65);
+buildRabbit(20.5, -13.3, 0.9);
+buildRabbit(23.8, -16.0, 0.8);
+buildRabbit(26.2, -8.8, 0.75);
+buildRabbit(28.0, -10.2, 0.7);
+buildRabbit(19.0, -19.0, 0.7);
+buildBoar(25.8, -15.2, 0.8);
+buildBoar(21.4, -18.2, 0.7);
+buildForestBirdPerch(23.0, -12.0, 0.9);
+buildForestBirdPerch(26.5, -9.8, 0.8);
+buildForestBirdPerch(19.5, -16.8, 0.75);
+
 // ---------- HARBOUR ----------
 function buildHarbour(landX, waterX, z) {
   const g = new THREE.Group();
@@ -1287,6 +2332,547 @@ buildHarbourHut(-15.8, 0);
 // Docked motorboat at the pier's water end
 buildMotorboat(-24, 1.2);
 
+// ---------- AQUACULTURE (fish-farm pens floating in the bay) ----------
+function buildFishFarm(cx, cz, yaw = 0, surfaceY = 0.18) {
+  const g = new THREE.Group();
+  const frameMat = new THREE.MeshStandardMaterial({
+    color: 0x546e7a, roughness: 0.55, metalness: 0.45,
+  });
+  const netMat = new THREE.MeshStandardMaterial({
+    color: 0x90a4ae, transparent: true, opacity: 0.35,
+    side: THREE.DoubleSide, depthWrite: false,
+  });
+  const buoyMat = new THREE.MeshStandardMaterial({
+    color: 0xff5722, roughness: 0.6,
+  });
+  const walkwayMat = new THREE.MeshStandardMaterial({
+    color: 0x8d6e63, roughness: 0.9,
+  });
+  // 3 pens in a row
+  for (let i = 0; i < 3; i++) {
+    const px = (i - 1) * 1.7;
+    // Square frame at water surface (top edges only)
+    const fW = 1.4;
+    [[fW, 0.08, 0.12], [fW, 0.08, 0.12]].forEach((s, j) => {
+      const frame = new THREE.Mesh(
+        new THREE.BoxGeometry(s[0], s[1], s[2]),
+        frameMat
+      );
+      frame.position.set(px, 0.05, (j === 0 ? -1 : 1) * fW / 2);
+      g.add(frame);
+    });
+    [[0.12, 0.08, fW], [0.12, 0.08, fW]].forEach((s, j) => {
+      const frame = new THREE.Mesh(
+        new THREE.BoxGeometry(s[0], s[1], s[2]),
+        frameMat
+      );
+      frame.position.set(px + (j === 0 ? -1 : 1) * fW / 2, 0.05, 0);
+      g.add(frame);
+    });
+    // Net visible just below the surface
+    const net = new THREE.Mesh(
+      new THREE.BoxGeometry(fW - 0.1, 0.55, fW - 0.1), netMat
+    );
+    net.position.set(px, -0.25, 0);
+    g.add(net);
+    // 4 orange buoys at the corners
+    [[-fW/2, -fW/2], [fW/2, -fW/2], [-fW/2, fW/2], [fW/2, fW/2]].forEach(c => {
+      const buoy = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8), buoyMat);
+      buoy.position.set(px + c[0], 0.12, c[1]);
+      buoy.castShadow = true;
+      g.add(buoy);
+    });
+  }
+  // Wooden walkway connecting the pens
+  const walk = new THREE.Mesh(
+    new THREE.BoxGeometry(5.4, 0.06, 0.45), walkwayMat
+  );
+  walk.position.set(0, 0.13, 0);
+  g.add(walk);
+  g.position.set(cx, surfaceY, cz);
+  g.rotation.y = yaw;
+  scene.add(g);
+  return g;
+}
+// Aquaculture pond along the riverbank — freshwater fish farming.
+// Sits south of the river bend at (5.5, -2) on the south plain.
+const _aquaCx = 3, _aquaCz = -5;
+const _aquaY = sampleTerrainY(_aquaCx, _aquaCz);
+const _aquaPondMat = new THREE.MeshStandardMaterial({
+  color: 0x29b6f6, emissive: 0x0277bd, emissiveIntensity: 0.4,
+  roughness: 0.25, metalness: 0.05,
+});
+// Rectangular pond holding the pens (a bit larger than the farm footprint)
+const _aquaPond = new THREE.Mesh(
+  new THREE.BoxGeometry(6.5, 0.08, 3.2), _aquaPondMat
+);
+_aquaPond.position.set(_aquaCx, _aquaY + 0.18, _aquaCz);
+_aquaPond.receiveShadow = true;
+scene.add(_aquaPond);
+// Sandy bank around the pond
+const _aquaBank = new THREE.Mesh(
+  new THREE.BoxGeometry(7.3, 0.06, 4.0),
+  new THREE.MeshStandardMaterial({ color: 0xc9a663, roughness: 0.95 })
+);
+_aquaBank.position.set(_aquaCx, _aquaY + 0.14, _aquaCz);
+scene.add(_aquaBank);
+// Short channel connecting the pond to the main river (just to the north)
+const _aquaChannel = new THREE.Mesh(
+  new THREE.BoxGeometry(0.6, 0.07, 2.5), _aquaPondMat
+);
+_aquaChannel.position.set(_aquaCx + 1.5, _aquaY + 0.18, _aquaCz + 2.5);
+scene.add(_aquaChannel);
+buildFishFarm(_aquaCx, _aquaCz, 0, _aquaY + 0.20);
+
+// ---------- FISHERMEN ----------
+function makeFisherman(shirtColor = 0x1976d2, hatColor = 0xfdd835) {
+  const g = new THREE.Group();
+  const skinMat = new THREE.MeshStandardMaterial({ color: 0xffccbc, roughness: 0.9 });
+  const shirtMat = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.85 });
+  const pantsMat = new THREE.MeshStandardMaterial({ color: 0x37474f, roughness: 0.95 });
+  const rodMat = new THREE.MeshStandardMaterial({ color: 0x4e342e, roughness: 0.9 });
+  const lineMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee });
+  // Pants
+  const pants = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.14, 0.12, 0.35, 8), pantsMat
+  );
+  pants.position.y = 0.18;
+  pants.castShadow = true;
+  g.add(pants);
+  // Shirt / body
+  const body = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.16, 0.14, 0.45, 8), shirtMat
+  );
+  body.position.y = 0.58;
+  body.castShadow = true;
+  g.add(body);
+  // Head
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 10), skinMat);
+  head.position.y = 0.92;
+  head.castShadow = true;
+  g.add(head);
+  // Cone hat
+  const hat = new THREE.Mesh(
+    new THREE.ConeGeometry(0.18, 0.2, 10),
+    new THREE.MeshStandardMaterial({ color: hatColor, roughness: 0.8 })
+  );
+  hat.position.y = 1.07;
+  hat.castShadow = true;
+  g.add(hat);
+  // Fishing rod (angled forward and up)
+  const rod = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.018, 0.022, 1.6, 5), rodMat
+  );
+  rod.position.set(0.55, 0.95, 0);
+  rod.rotation.z = -0.7;
+  g.add(rod);
+  // Line dangling from rod tip
+  const line = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.008, 0.008, 0.9, 4), lineMat
+  );
+  line.position.set(1.18, 0.5, 0);
+  g.add(line);
+  return g;
+}
+function placeFisherman(x, y, z, yaw = 0, shirtColor, hatColor) {
+  const f = makeFisherman(shirtColor, hatColor);
+  f.position.set(x, y, z);
+  f.rotation.y = yaw;
+  scene.add(f);
+  return f;
+}
+// Two fishermen on the pier, facing the water
+placeFisherman(-20, 0.43, -0.7,  Math.PI, 0x1976d2, 0xfdd835);
+placeFisherman(-17, 0.43,  0.7,  Math.PI, 0xc62828, 0x6d4c41);
+// One on the beach
+placeFisherman(-16.5, 0.36, -8, -Math.PI / 2, 0x388e3c, 0xfdd835);
+
+// ---------- COASTAL CITY ----------
+// A compact settlement just inland from the beach, like the reference image:
+// visible buildings behind the palms without covering the sand/ocean edge.
+function buildCityBlock(x, z, w, d, h, color, roofColor = 0x455a64) {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(w, h, d),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.82 })
+  );
+  body.position.y = h / 2;
+  body.castShadow = true;
+  body.receiveShadow = true;
+  g.add(body);
+
+  const roof = new THREE.Mesh(
+    new THREE.BoxGeometry(w * 1.05, 0.12, d * 1.05),
+    new THREE.MeshStandardMaterial({ color: roofColor, roughness: 0.75 })
+  );
+  roof.position.y = h + 0.08;
+  roof.castShadow = true;
+  g.add(roof);
+
+  const winMat = new THREE.MeshStandardMaterial({
+    color: 0xfff59d,
+    emissive: 0xffca28,
+    emissiveIntensity: 0.25,
+    roughness: 0.35,
+  });
+  const cols = Math.max(2, Math.floor(w / 0.45));
+  const rows = Math.max(2, Math.floor(h / 0.45));
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const win = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.18, 0.035), winMat);
+      win.position.set(
+        -w * 0.38 + col * (w * 0.76 / Math.max(1, cols - 1)),
+        0.35 + row * (h * 0.65 / Math.max(1, rows - 1)),
+        d / 2 + 0.02
+      );
+      g.add(win);
+    }
+  }
+
+  g.position.set(x, sampleTerrainY(x, z), z);
+  scene.add(g);
+  return g;
+}
+
+function buildCoastalCity() {
+  const city = [
+    { x: -13.0, z: -13.4, w: 1.6, d: 1.4, h: 2.4, c: 0xb0bec5 },
+    { x: -11.0, z: -12.8, w: 1.8, d: 1.5, h: 3.0, c: 0x90a4ae },
+    { x: -9.2,  z: -13.6, w: 1.4, d: 1.3, h: 2.2, c: 0xd7ccc8 },
+    { x: -12.2, z: -10.8, w: 1.5, d: 1.2, h: 1.8, c: 0xffecb3, roof: 0xc62828 },
+    { x: -10.2, z: -10.6, w: 1.6, d: 1.3, h: 2.6, c: 0xcfd8dc },
+    { x: -8.7,  z: -11.3, w: 1.2, d: 1.1, h: 1.7, c: 0xefebe9, roof: 0x1976d2 },
+  ];
+  city.forEach(b => buildCityBlock(b.x, b.z, b.w, b.d, b.h, b.c, b.roof));
+
+  // Small promenade/road between city and beach.
+  const road = new THREE.Mesh(
+    new THREE.BoxGeometry(0.65, 0.05, 7.5),
+    new THREE.MeshStandardMaterial({ color: 0x546e7a, roughness: 0.9 })
+  );
+  road.position.set(-14.25, sampleTerrainY(-14.25, -12) + 0.08, -12);
+  road.receiveShadow = true;
+  scene.add(road);
+}
+buildCoastalCity();
+
+function buildCoastalRoad(x, z, length, width, yaw = 0) {
+  const y = sampleTerrainY(x, z);
+  const road = new THREE.Mesh(
+    new THREE.BoxGeometry(length, 0.055, width),
+    new THREE.MeshStandardMaterial({ color: 0x455a64, roughness: 0.92 })
+  );
+  road.position.set(x, y + 0.09, z);
+  road.rotation.y = yaw;
+  road.receiveShadow = true;
+  scene.add(road);
+
+  const line = new THREE.Mesh(
+    new THREE.BoxGeometry(length * 0.82, 0.025, 0.06),
+    new THREE.MeshStandardMaterial({ color: 0xfff176, emissive: 0xfdd835, emissiveIntensity: 0.2 })
+  );
+  line.position.set(x, y + 0.13, z);
+  line.rotation.y = yaw;
+  scene.add(line);
+}
+
+function buildCoastalCar(x, z, color = 0xef5350, yaw = 0) {
+  const g = new THREE.Group();
+  const bodyMat = new THREE.MeshStandardMaterial({ color, roughness: 0.55 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x212121, roughness: 0.9 });
+  const glassMat = new THREE.MeshStandardMaterial({
+    color: 0x81d4fa,
+    roughness: 0.25,
+    metalness: 0.3,
+    emissive: 0x0277bd,
+    emissiveIntensity: 0.12,
+  });
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.32, 0.48), bodyMat);
+  body.position.y = 0.32;
+  body.castShadow = true;
+  g.add(body);
+
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.25, 0.42), glassMat);
+  cabin.position.set(-0.04, 0.55, 0);
+  cabin.castShadow = true;
+  g.add(cabin);
+
+  [[-0.28, 0.2], [0.28, 0.2], [-0.28, -0.2], [0.28, -0.2]].forEach(([dx, dz]) => {
+    const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.08, 10), darkMat);
+    wheel.position.set(dx, 0.16, dz);
+    wheel.rotation.x = Math.PI / 2;
+    wheel.castShadow = true;
+    g.add(wheel);
+  });
+
+  g.position.set(x, sampleTerrainY(x, z) + 0.08, z);
+  g.rotation.y = yaw;
+  scene.add(g);
+  return g;
+}
+
+function buildCoastalPedestrian(x, z, shirtColor = 0x42a5f5) {
+  const g = new THREE.Group();
+  const skinMat = new THREE.MeshStandardMaterial({ color: 0xb87545, roughness: 0.75 });
+  const shirtMat = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.8 });
+  const pantsMat = new THREE.MeshStandardMaterial({ color: 0x37474f, roughness: 0.85 });
+
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.1, 0.42, 8), shirtMat);
+  body.position.y = 0.52;
+  body.castShadow = true;
+  g.add(body);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), skinMat);
+  head.position.y = 0.82;
+  head.castShadow = true;
+  g.add(head);
+
+  [-0.04, 0.04].forEach(dx => {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.025, 0.32, 8), pantsMat);
+    leg.position.set(dx, 0.18, 0);
+    leg.castShadow = true;
+    g.add(leg);
+  });
+
+  g.position.set(x, sampleTerrainY(x, z) + 0.08, z);
+  g.rotation.y = Math.random() * Math.PI * 2;
+  scene.add(g);
+  return g;
+}
+
+function buildCoastalCityLife() {
+  buildCoastalRoad(-11.0, -9.4, 6.4, 0.72, 0);
+  buildCoastalRoad(-11.0, -14.9, 6.2, 0.72, 0);
+  buildCoastalRoad(-8.0, -12.1, 5.9, 0.72, Math.PI / 2);
+  buildCoastalRoad(-13.9, -12.1, 5.7, 0.72, Math.PI / 2);
+
+  buildCoastalCar(-12.8, -9.4, 0xef5350, 0.02);
+  buildCoastalCar(-9.4, -9.4, 0x29b6f6, Math.PI);
+  buildCoastalCar(-8.0, -12.7, 0xffca28, Math.PI / 2);
+  buildCoastalCar(-12.0, -14.9, 0x66bb6a, 0);
+  buildCoastalCar(-13.9, -11.1, 0xab47bc, Math.PI / 2);
+
+  [
+    [-13.3, -11.4, 0xff7043],
+    [-12.4, -10.0, 0x29b6f6],
+    [-10.6, -11.8, 0xffca28],
+    [-9.3,  -13.9, 0x66bb6a],
+    [-14.7, -12.5, 0xab47bc],
+    [-8.6,  -10.2, 0xef5350],
+    [-11.5, -15.6, 0x26a69a],
+  ].forEach(([x, z, color]) => buildCoastalPedestrian(x, z, color));
+}
+buildCoastalCityLife();
+
+// ---------- COASTAL MALL ----------
+function buildMallTree(x, z, scale = 1) {
+  const g = new THREE.Group();
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.07, 0.1, 0.9, 8),
+    new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 1 })
+  );
+  trunk.position.y = 0.45;
+  trunk.castShadow = true;
+  g.add(trunk);
+
+  const leafMat = new THREE.MeshStandardMaterial({ color: 0x43a047, roughness: 0.85 });
+  for (let i = 0; i < 3; i++) {
+    const puff = new THREE.Mesh(new THREE.SphereGeometry(0.32 - i * 0.03, 10, 8), leafMat);
+    puff.position.set((Math.random() - 0.5) * 0.25, 0.95 + i * 0.18, (Math.random() - 0.5) * 0.25);
+    puff.castShadow = true;
+    g.add(puff);
+  }
+  g.position.set(x, sampleTerrainY(x, z) + 0.04, z);
+  g.scale.setScalar(scale);
+  scene.add(g);
+  return g;
+}
+
+function buildMall(cx, cz) {
+  const y = sampleTerrainY(cx, cz);
+  const mallMat = new THREE.MeshStandardMaterial({ color: 0xe0e0e0, roughness: 0.78 });
+  const accentMat = new THREE.MeshStandardMaterial({ color: 0x1976d2, roughness: 0.65 });
+  const glassMat = new THREE.MeshStandardMaterial({
+    color: 0x81d4fa,
+    roughness: 0.18,
+    metalness: 0.45,
+    emissive: 0x0277bd,
+    emissiveIntensity: 0.14,
+  });
+
+  const main = new THREE.Mesh(new THREE.BoxGeometry(4.8, 1.5, 2.4), mallMat);
+  main.position.set(cx, y + 0.75, cz);
+  main.castShadow = true;
+  main.receiveShadow = true;
+  scene.add(main);
+
+  const entry = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.2, 0.2), glassMat);
+  entry.position.set(cx, y + 0.65, cz - 1.23);
+  scene.add(entry);
+
+  const sign = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.28, 0.08), accentMat);
+  sign.position.set(cx, y + 1.65, cz - 1.28);
+  scene.add(sign);
+
+  const parking = new THREE.Mesh(
+    new THREE.BoxGeometry(5.4, 0.04, 3.2),
+    new THREE.MeshStandardMaterial({ color: 0x424242, roughness: 0.95 })
+  );
+  parking.position.set(cx, y + 0.06, cz - 3.2);
+  parking.receiveShadow = true;
+  scene.add(parking);
+
+  const stripeMat = new THREE.MeshStandardMaterial({ color: 0xfafafa, roughness: 0.8 });
+  for (let i = 0; i < 6; i++) {
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.02, 1.0), stripeMat);
+    stripe.position.set(cx - 2.2 + i * 0.9, y + 0.09, cz - 3.2);
+    scene.add(stripe);
+  }
+
+  [
+    [cx - 2.0, cz - 3.4, 0xef5350],
+    [cx - 0.8, cz - 2.9, 0x29b6f6],
+    [cx + 0.5, cz - 3.5, 0xffca28],
+    [cx + 1.8, cz - 2.8, 0x66bb6a],
+  ].forEach(([x, z, color]) => buildCoastalCar(x, z, color, Math.PI / 2));
+
+  [
+    [cx - 2.8, cz - 1.4], [cx + 2.8, cz - 1.4],
+    [cx - 2.8, cz + 1.3], [cx + 2.8, cz + 1.3],
+    [cx - 3.0, cz - 3.8], [cx + 3.0, cz - 3.8],
+  ].forEach(([x, z]) => buildMallTree(x, z, 0.75));
+
+  [
+    [cx - 0.9, cz - 1.9, 0xff7043],
+    [cx + 0.9, cz - 1.8, 0xab47bc],
+    [cx - 1.8, cz - 3.0, 0x26a69a],
+    [cx + 1.5, cz - 3.4, 0xffca28],
+    [cx + 2.2, cz - 0.9, 0x29b6f6],
+  ].forEach(([x, z, color]) => buildCoastalPedestrian(x, z, color));
+}
+buildMall(-8.4, -13.8);
+
+// ---------- SCHOOL ----------
+function buildSchool(cx, cz) {
+  const y = sampleTerrainY(cx, cz);
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0xfff3e0, roughness: 0.86 });
+  const roofMat = new THREE.MeshStandardMaterial({ color: 0xc62828, roughness: 0.75 });
+  const glassMat = new THREE.MeshStandardMaterial({
+    color: 0x90caf9,
+    roughness: 0.25,
+    metalness: 0.25,
+    emissive: 0x1976d2,
+    emissiveIntensity: 0.12,
+  });
+
+  const building = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.25, 1.7), wallMat);
+  building.position.set(cx, y + 0.62, cz);
+  building.castShadow = true;
+  building.receiveShadow = true;
+  scene.add(building);
+
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(3.45, 0.18, 1.95), roofMat);
+  roof.position.set(cx, y + 1.34, cz);
+  roof.castShadow = true;
+  scene.add(roof);
+
+  const door = new THREE.Mesh(
+    new THREE.BoxGeometry(0.42, 0.68, 0.06),
+    new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.8 })
+  );
+  door.position.set(cx, y + 0.35, cz - 0.88);
+  scene.add(door);
+
+  [-1.05, -0.35, 0.35, 1.05].forEach(dx => {
+    const win = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.32, 0.05), glassMat);
+    win.position.set(cx + dx, y + 0.82, cz - 0.88);
+    scene.add(win);
+  });
+
+  const yard = new THREE.Mesh(
+    new THREE.BoxGeometry(4.2, 0.04, 2.4),
+    new THREE.MeshStandardMaterial({ color: 0x7cb342, roughness: 0.95 })
+  );
+  yard.position.set(cx, y + 0.04, cz - 2.25);
+  yard.receiveShadow = true;
+  scene.add(yard);
+
+  const flagPole = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.025, 0.03, 1.4, 8),
+    new THREE.MeshStandardMaterial({ color: 0x9e9e9e, roughness: 0.6, metalness: 0.4 })
+  );
+  flagPole.position.set(cx - 1.85, y + 0.74, cz - 2.25);
+  scene.add(flagPole);
+
+  const flag = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.55, 0.32),
+    new THREE.MeshStandardMaterial({ color: 0x1976d2, roughness: 0.7, side: THREE.DoubleSide })
+  );
+  flag.position.set(cx - 1.58, y + 1.18, cz - 2.25);
+  flag.rotation.y = Math.PI / 2;
+  scene.add(flag);
+
+  [
+    [cx - 1.2, cz - 2.4, 0x29b6f6],
+    [cx - 0.3, cz - 2.9, 0xffca28],
+    [cx + 0.7, cz - 2.35, 0x66bb6a],
+    [cx + 1.4, cz - 2.85, 0xef5350],
+  ].forEach(([x, z, color]) => buildCoastalPedestrian(x, z, color));
+
+  buildMallTree(cx - 2.3, cz - 1.3, 0.7);
+  buildMallTree(cx + 2.3, cz - 1.3, 0.7);
+}
+buildSchool(-7.2, 7.4);
+
+function buildPupil(x, z, shirtColor = 0x1976d2) {
+  const g = new THREE.Group();
+  const skinMat = new THREE.MeshStandardMaterial({ color: 0xb87545, roughness: 0.78 });
+  const shirtMat = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.8 });
+  const backpackMat = new THREE.MeshStandardMaterial({ color: 0x263238, roughness: 0.8 });
+  const shortsMat = new THREE.MeshStandardMaterial({ color: 0x37474f, roughness: 0.85 });
+
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.085, 0.34, 8), shirtMat);
+  body.position.y = 0.42;
+  body.castShadow = true;
+  g.add(body);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 8), skinMat);
+  head.position.y = 0.68;
+  head.castShadow = true;
+  g.add(head);
+
+  const backpack = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.22, 0.05), backpackMat);
+  backpack.position.set(-0.08, 0.43, 0);
+  g.add(backpack);
+
+  [-0.035, 0.035].forEach(dx => {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.02, 0.25, 8), shortsMat);
+    leg.position.set(dx, 0.14, 0);
+    leg.castShadow = true;
+    g.add(leg);
+  });
+
+  g.position.set(x, sampleTerrainY(x, z) + 0.08, z);
+  g.rotation.y = Math.random() * Math.PI * 2;
+  scene.add(g);
+  return g;
+}
+
+function buildSchoolPupils() {
+  [
+    [-8.2, 4.8, 0x1976d2],
+    [-7.7, 4.4, 0x1976d2],
+    [-7.1, 4.6, 0xffca28],
+    [-6.5, 4.2, 0x1976d2],
+    [-6.1, 4.9, 0x66bb6a],
+    [-8.0, 5.5, 0xef5350],
+    [-7.2, 5.3, 0x29b6f6],
+    [-6.4, 5.6, 0xab47bc],
+  ].forEach(([x, z, color]) => buildPupil(x, z, color));
+}
+buildSchoolPupils();
+
 // Industrial complex on the open north plain, between terrace, ponds, and windmill
 const _indCx = 15, _indCz = 10;
 buildFactory(_indCx, _indCz, 0.3);
@@ -1294,17 +2880,242 @@ buildStorageTank(_indCx + 3.0, _indCz - 0.5, 0xeceff1);
 buildStorageTank(_indCx + 3.0, _indCz + 1.2, 0xb0bec5);
 buildWarehouse(_indCx - 3.0, _indCz + 0.5, -0.2);
 
-// Cow — placed on the open plain south of the river
+// Perimeter fence around the industrial cluster
+function buildFence(x1, z1, x2, z2, postHeight = 1.4) {
+  const g = new THREE.Group();
+  const postMat = new THREE.MeshStandardMaterial({
+    color: 0x607d8b, roughness: 0.6, metalness: 0.5,
+  });
+  const railMat = new THREE.MeshStandardMaterial({
+    color: 0x37474f, roughness: 0.7,
+  });
+  const meshMat = new THREE.MeshStandardMaterial({
+    color: 0xb0bec5,
+    transparent: true,
+    opacity: 0.35,
+    side: THREE.DoubleSide,
+    metalness: 0.6,
+    roughness: 0.4,
+    depthWrite: false,
+  });
+  const sides = [
+    { from: [x1, z1], to: [x2, z1] },
+    { from: [x2, z1], to: [x2, z2] },
+    { from: [x2, z2], to: [x1, z2] },
+    { from: [x1, z2], to: [x1, z1] },
+  ];
+  sides.forEach(side => {
+    const dx = side.to[0] - side.from[0];
+    const dz = side.to[1] - side.from[1];
+    const len = Math.sqrt(dx * dx + dz * dz);
+    const angle = Math.atan2(dz, dx);
+    const midX = (side.from[0] + side.to[0]) / 2;
+    const midZ = (side.from[1] + side.to[1]) / 2;
+    const yMid = sampleTerrainY(midX, midZ);
+    // Posts every ~1.5 units (including both ends)
+    const numPosts = Math.max(2, Math.ceil(len / 1.5) + 1);
+    for (let i = 0; i < numPosts; i++) {
+      const t = i / (numPosts - 1);
+      const x = side.from[0] + t * dx;
+      const z = side.from[1] + t * dz;
+      const post = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.07, 0.07, postHeight, 8), postMat
+      );
+      post.position.set(x, sampleTerrainY(x, z) + postHeight / 2, z);
+      post.castShadow = true;
+      g.add(post);
+    }
+    // Top rail
+    const topRail = new THREE.Mesh(
+      new THREE.BoxGeometry(len, 0.06, 0.06), railMat
+    );
+    topRail.position.set(midX, yMid + postHeight - 0.05, midZ);
+    topRail.rotation.y = -angle;
+    g.add(topRail);
+    // Bottom rail
+    const botRail = new THREE.Mesh(
+      new THREE.BoxGeometry(len, 0.06, 0.06), railMat
+    );
+    botRail.position.set(midX, yMid + 0.1, midZ);
+    botRail.rotation.y = -angle;
+    g.add(botRail);
+    // Mesh / chain-link panel (semi-transparent vertical plane between rails)
+    const panel = new THREE.Mesh(
+      new THREE.PlaneGeometry(len, postHeight - 0.15), meshMat
+    );
+    panel.position.set(midX, yMid + (postHeight - 0.15) / 2 + 0.1, midZ);
+    panel.rotation.y = -angle;
+    g.add(panel);
+  });
+  scene.add(g);
+  return g;
+}
+// Wraps the factory, both tanks, and the warehouse
+buildFence(10.0, 8.4, 19.2, 12.2);
+
+// ---------- INDUSTRIAL SMOKE ----------
+// Gray puff particles rising from the two factory smokestacks.
+const smokeCanvas = document.createElement('canvas');
+smokeCanvas.width = smokeCanvas.height = 64;
+{
+  const sctx = smokeCanvas.getContext('2d');
+  const grad = sctx.createRadialGradient(32, 32, 4, 32, 32, 32);
+  grad.addColorStop(0,   'rgba(70, 70, 70, 0.9)');
+  grad.addColorStop(0.4, 'rgba(120, 120, 120, 0.6)');
+  grad.addColorStop(0.8, 'rgba(180, 180, 180, 0.2)');
+  grad.addColorStop(1,   'rgba(200, 200, 200, 0)');
+  sctx.fillStyle = grad;
+  sctx.fillRect(0, 0, 64, 64);
+}
+const smokeTex = new THREE.CanvasTexture(smokeCanvas);
+
+// Approximate world-space positions of the two stack tops (after the factory's
+// 0.3-rad yaw rotation around the (15, 10) center).
+function rotatedStack(dx, dz) {
+  const c = Math.cos(0.3), s = Math.sin(0.3);
+  return { x: 15 + dx * c - dz * s, z: 10 + dx * s + dz * c };
+}
+const stack1 = rotatedStack(-0.6, 0.7);
+const stack2 = rotatedStack( 0.6, 0.7);
+const smokeEmitters = [
+  { x: stack1.x, y: sampleTerrainY(stack1.x, stack1.z) + 3.95, z: stack1.z },
+  { x: stack2.x, y: sampleTerrainY(stack2.x, stack2.z) + 3.95, z: stack2.z },
+];
+
+const SMOKE_COUNT = 140;
+const SMOKE_LIFE = 3.6;
+const smokeGeo = new THREE.BufferGeometry();
+const smokePos = new Float32Array(SMOKE_COUNT * 3);
+const smokeAges = new Float32Array(SMOKE_COUNT);
+const smokeDrift = new Float32Array(SMOKE_COUNT * 2); // x, z drift speeds
+function seedSmoke(i, reset = false) {
+  const e = smokeEmitters[i % smokeEmitters.length];
+  smokePos[i * 3]     = e.x + (Math.random() - 0.5) * 0.18;
+  smokePos[i * 3 + 1] = e.y + (Math.random() - 0.5) * 0.1;
+  smokePos[i * 3 + 2] = e.z + (Math.random() - 0.5) * 0.18;
+  smokeAges[i] = reset ? 0 : Math.random() * SMOKE_LIFE;
+  smokeDrift[i * 2]     = (Math.random() - 0.5) * 0.18;
+  smokeDrift[i * 2 + 1] = (Math.random() - 0.5) * 0.18 - 0.05; // slight prevailing wind
+}
+for (let i = 0; i < SMOKE_COUNT; i++) seedSmoke(i);
+smokeGeo.setAttribute('position', new THREE.BufferAttribute(smokePos, 3));
+const smokeMat = new THREE.PointsMaterial({
+  map: smokeTex,
+  size: 1.4,
+  transparent: true,
+  opacity: 0.7,
+  depthWrite: false,
+  sizeAttenuation: true,
+});
+const smoke = new THREE.Points(smokeGeo, smokeMat);
+scene.add(smoke);
+
+// ---------- INDUSTRIAL DUMP / POLLUTION ----------
+function buildIndustrialDump(cx, cz) {
+  const y = sampleTerrainY(cx, cz);
+  const dirtMat = new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 1 });
+  const trashMats = [
+    new THREE.MeshStandardMaterial({ color: 0x78909c, roughness: 0.85, metalness: 0.25 }),
+    new THREE.MeshStandardMaterial({ color: 0x424242, roughness: 0.9 }),
+    new THREE.MeshStandardMaterial({ color: 0xffca28, roughness: 0.8 }),
+    new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 1 }),
+  ];
+
+  const pad = new THREE.Mesh(new THREE.CircleGeometry(2.4, 28), dirtMat);
+  pad.rotation.x = -Math.PI / 2;
+  pad.position.set(cx, y + 0.07, cz);
+  pad.receiveShadow = true;
+  scene.add(pad);
+
+  for (let i = 0; i < 24; i++) {
+    const mat = trashMats[Math.floor(Math.random() * trashMats.length)];
+    const box = new THREE.Mesh(
+      new THREE.BoxGeometry(0.28 + Math.random() * 0.35, 0.18 + Math.random() * 0.35, 0.25 + Math.random() * 0.35),
+      mat
+    );
+    const angle = Math.random() * Math.PI * 2;
+    const r = Math.sqrt(Math.random()) * 2.0;
+    box.position.set(cx + Math.cos(angle) * r, y + 0.18 + Math.random() * 0.25, cz + Math.sin(angle) * r);
+    box.rotation.set(Math.random() * 0.6, Math.random() * Math.PI, Math.random() * 0.6);
+    box.castShadow = true;
+    scene.add(box);
+  }
+
+  const barrelMat = new THREE.MeshStandardMaterial({ color: 0x263238, roughness: 0.65, metalness: 0.35 });
+  for (let i = 0; i < 6; i++) {
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.46, 12), barrelMat);
+    barrel.position.set(cx - 1.3 + i * 0.48, y + 0.28, cz + 1.55 + (i % 2) * 0.22);
+    barrel.rotation.z = i % 2 ? 0.2 : -0.15;
+    barrel.castShadow = true;
+    scene.add(barrel);
+  }
+
+  const pollutedMat = new THREE.MeshStandardMaterial({
+    color: 0x7cb342,
+    emissive: 0x33691e,
+    emissiveIntensity: 0.45,
+    roughness: 0.35,
+    transparent: true,
+    opacity: 0.78,
+  });
+  const runoff = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.05, 5.2), pollutedMat);
+  runoff.position.set(cx + 0.9, y + 0.11, cz + 3.25);
+  runoff.rotation.y = -0.35;
+  scene.add(runoff);
+
+  const warning = new THREE.Mesh(
+    new THREE.ConeGeometry(0.35, 0.55, 3),
+    new THREE.MeshStandardMaterial({ color: 0xffeb3b, roughness: 0.65 })
+  );
+  warning.position.set(cx - 2.2, y + 0.35, cz - 1.7);
+  warning.rotation.y = Math.PI / 6;
+  scene.add(warning);
+}
+buildIndustrialDump(20.5, 10.5);
+
+function placeCowAsset(source, { worldX, worldZ, targetH = 1.25, yaw = 0 }) {
+  const wrapper = new THREE.Group();
+  const inner = source.clone(true);
+  wrapper.add(inner);
+
+  const box = new THREE.Box3().setFromObject(inner);
+  const size = box.getSize(new THREE.Vector3());
+  const scale = targetH / Math.max(size.y, 0.001);
+  inner.scale.setScalar(scale);
+
+  const scaledBox = new THREE.Box3().setFromObject(inner);
+  inner.position.y -= scaledBox.min.y;
+  inner.traverse(o => {
+    if (o.isMesh) {
+      o.castShadow = true;
+      o.receiveShadow = true;
+    }
+  });
+
+  wrapper.position.set(worldX, sampleTerrainY(worldX, worldZ), worldZ);
+  wrapper.rotation.y = yaw;
+  scene.add(wrapper);
+  return wrapper;
+}
+
+// Cow asset herd — use the provided Sketchfab cow model rather than procedural cows.
 gltfLoader.load('models/cow_small/scene.gltf', (gltf) => {
   console.log('cow loaded, animations:', gltf.animations.length);
-  placeModel(gltf, {
-    worldX: 3, worldZ: -4, targetH: 1.5, yaw: 0.8, zUp: false,
+  const cowSource = gltf.scene;
+  cowSource.traverse(o => {
+    if (o.isMesh) {
+      o.castShadow = true;
+      o.receiveShadow = true;
+    }
   });
-  // Mixer must target the original gltf.scene root so animation tracks resolve
-  if (gltf.animations && gltf.animations.length) {
-    cowMixer = new THREE.AnimationMixer(gltf.scene);
-    cowMixer.clipAction(gltf.animations[0]).play();
-  }
+  // Moved out of the aquaculture pond at (3, -5) — clear of water now
+  [
+    { worldX: 11.5, worldZ: -7.5, yaw: 0.8, targetH: 1.35 },
+    { worldX: 13.0, worldZ: -8.5, yaw: 1.4, targetH: 1.15 },
+    { worldX: 7.0,  worldZ: -7.7, yaw: -0.2, targetH: 1.2 },
+    { worldX: 3.6,  worldZ: -8.0, yaw: 2.2, targetH: 1.1 },
+    { worldX: 9.5,  worldZ: -9.0, yaw: -1.0, targetH: 1.18 },
+  ].forEach(cfg => placeCowAsset(cowSource, cfg));
 }, undefined, (err) => console.warn('cow load failed', err));
 
 // ---------- SUN ----------
@@ -1524,14 +3335,16 @@ function buildPipe(from, to, color, radius = 0.18) {
 // Water supply: from main river (z≈0.5 at x=-5.5) up to village south edge.
 // Village houses span roughly z=10.5 to 15.5, so end the pipe at z=10.5.
 buildPipe(
-  new THREE.Vector3(-5.5, 0.40, 0.5),
-  new THREE.Vector3(-6.5, 0.55, 10.5),
+  new THREE.Vector3(-5.5, -0.55, 21.2),
+  new THREE.Vector3(-6.5, -0.50, 12.0),
   0x4fc3f7, 0.26
 );
-// Stormwater drain: from village (-9.5, 10.5) back to river at (-10.5, ~0.9).
+// Stormwater drain: village south-east corner → river bend.
+// Moved EAST of the east-avenue road (x=-9.5) so the pipe doesn't lay over
+// or cross any of the new paved roads around the city.
 buildPipe(
-  new THREE.Vector3(-9.5,  0.55, 10.5),
-  new THREE.Vector3(-10.5, 0.40, 0.9),
+  new THREE.Vector3(-8.3, -0.50, 12.0),
+  new THREE.Vector3(-10.5, -0.55, 21.2),
   0x546e7a, 0.30
 );
 
@@ -1691,9 +3504,88 @@ function buildArrowSource(x, z, kind) {
 }
 buildArrowSource(12, -16, 'soil');
 // FROM STREAMS source is now the head of the east tributary (see river network)
+buildArrowSource(22, 3,   'stream');
 buildArrowSource(25, 7,   'vegetation');
-// FROM FIELDS source is now the cloned field_garden.glb (see GLTF section)
 buildArrowSource(25, 15,  'lake');
+
+// ---------- RICE PADDIES (replaces the field_garden GLTF) ----------
+// Grid of shallow-flooded plots with rice plants, raised earth dikes
+// between them. Sits where the FROM FIELDS arrow points.
+function buildRicePaddies(cx, cz, width = 12, depth = 9, cols = 3, rows = 2) {
+  const g = new THREE.Group();
+  const yT = sampleTerrainY(cx, cz);
+  const dikeMat = new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 1 });
+  const waterMat = new THREE.MeshStandardMaterial({
+    color: 0x4dd0e1, emissive: 0x00838f, emissiveIntensity: 0.35,
+    roughness: 0.25, metalness: 0.1,
+  });
+  const riceMat = new THREE.MeshStandardMaterial({ color: 0x66bb6a, roughness: 0.85 });
+  const tallRiceMat = new THREE.MeshStandardMaterial({ color: 0x8bc34a, roughness: 0.85 });
+  const dikeW = 0.4;
+  const plotW = (width - dikeW * (cols + 1)) / cols;
+  const plotD = (depth - dikeW * (rows + 1)) / rows;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const px = -width / 2 + dikeW + c * (plotW + dikeW) + plotW / 2;
+      const pz = -depth / 2 + dikeW + r * (plotD + dikeW) + plotD / 2;
+      // Shallow water surface
+      const water = new THREE.Mesh(
+        new THREE.BoxGeometry(plotW, 0.1, plotD), waterMat
+      );
+      water.position.set(px, 0.18, pz);
+      water.receiveShadow = true;
+      g.add(water);
+      // Rice plants — small green cones in a roughly regular grid
+      const riceCols = 8, riceRows = 5;
+      for (let i = 0; i < riceCols; i++) {
+        for (let j = 0; j < riceRows; j++) {
+          if (Math.random() < 0.18) continue;
+          const rx = px - plotW / 2 + (i + 0.5) * (plotW / riceCols) + (Math.random() - 0.5) * 0.08;
+          const rz = pz - plotD / 2 + (j + 0.5) * (plotD / riceRows) + (Math.random() - 0.5) * 0.08;
+          const useTall = Math.random() < 0.4;
+          const rice = new THREE.Mesh(
+            new THREE.ConeGeometry(0.05, 0.32 + Math.random() * 0.1, 5),
+            useTall ? tallRiceMat : riceMat
+          );
+          rice.position.set(rx, 0.35, rz);
+          g.add(rice);
+        }
+      }
+    }
+  }
+  // Earth dikes (raised borders) — vertical and horizontal
+  for (let c = 0; c <= cols; c++) {
+    const dx = -width / 2 + c * (plotW + dikeW) + dikeW / 2;
+    const dike = new THREE.Mesh(
+      new THREE.BoxGeometry(dikeW, 0.28, depth), dikeMat
+    );
+    dike.position.set(dx, 0.18, 0);
+    dike.castShadow = true;
+    dike.receiveShadow = true;
+    g.add(dike);
+  }
+  for (let r = 0; r <= rows; r++) {
+    const dz = -depth / 2 + r * (plotD + dikeW) + dikeW / 2;
+    const dike = new THREE.Mesh(
+      new THREE.BoxGeometry(width, 0.28, dikeW), dikeMat
+    );
+    dike.position.set(0, 0.18, dz);
+    dike.castShadow = true;
+    dike.receiveShadow = true;
+    g.add(dike);
+  }
+  // A small wooden footbridge across the central dike — nice detail
+  const bridge = new THREE.Mesh(
+    new THREE.BoxGeometry(1.4, 0.05, dikeW + 0.3),
+    new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 0.9 })
+  );
+  bridge.position.set(0, 0.38, 0);
+  g.add(bridge);
+  g.position.set(cx, yT, cz);
+  scene.add(g);
+  return g;
+}
+buildRicePaddies(-2, -10, 12, 9);
 
 // ---------- PONDS (nature-based water-storage features) ----------
 // Modeled on the AEE "Ponds: Nature-based Solutions" reference: two ponds
@@ -1726,6 +3618,86 @@ function buildPond(x, z, radius = 2.0) {
 }
 buildPond(17, 17, 2.4);  // POND1 — bigger flood-collection pond
 buildPond(22, 19, 1.7);  // POND2 — storage/recharge pond, near FROM LAKES
+
+// ---------- RECREATIONAL AREA ----------
+function buildBench(x, z, yaw = 0) {
+  const g = new THREE.Group();
+  const woodMat = new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 0.85 });
+  const legMat = new THREE.MeshStandardMaterial({ color: 0x424242, roughness: 0.75, metalness: 0.35 });
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.08, 0.22), woodMat);
+  seat.position.y = 0.35;
+  seat.castShadow = true;
+  g.add(seat);
+  const back = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.08, 0.18), woodMat);
+  back.position.set(0, 0.58, 0.16);
+  back.rotation.x = -0.35;
+  g.add(back);
+  [-0.32, 0.32].forEach(dx => {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 0.35, 8), legMat);
+    leg.position.set(dx, 0.16, -0.05);
+    g.add(leg);
+  });
+  g.position.set(x, sampleTerrainY(x, z) + 0.04, z);
+  g.rotation.y = yaw;
+  scene.add(g);
+  return g;
+}
+
+function buildPicnicTable(x, z, yaw = 0) {
+  const g = new THREE.Group();
+  const woodMat = new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 0.88 });
+  const top = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.08, 0.42), woodMat);
+  top.position.y = 0.42;
+  g.add(top);
+  [-0.42, 0.42].forEach(dx => {
+    const bench = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.06, 0.16), woodMat);
+    bench.position.set(0, 0.28, dx);
+    g.add(bench);
+  });
+  g.position.set(x, sampleTerrainY(x, z) + 0.05, z);
+  g.rotation.y = yaw;
+  scene.add(g);
+  return g;
+}
+
+function buildRecreationalArea() {
+  const pathMat = new THREE.MeshStandardMaterial({ color: 0xd7b46a, roughness: 0.95 });
+  const paths = [
+    { x: 19.6, z: 18.2, w: 6.6, d: 0.32, yaw: 0.25 },
+    { x: 20.0, z: 16.0, w: 5.4, d: 0.28, yaw: -0.55 },
+    { x: 23.1, z: 17.3, w: 3.8, d: 0.28, yaw: Math.PI / 2.7 },
+  ];
+  paths.forEach(p => {
+    const path = new THREE.Mesh(new THREE.BoxGeometry(p.w, 0.035, p.d), pathMat);
+    path.position.set(p.x, sampleTerrainY(p.x, p.z) + 0.10, p.z);
+    path.rotation.y = p.yaw;
+    path.receiveShadow = true;
+    scene.add(path);
+  });
+
+  buildBench(18.7, 19.8, -0.6);
+  buildBench(23.8, 19.3, 0.75);
+  buildBench(20.0, 14.8, Math.PI);
+  buildPicnicTable(21.0, 21.2, 0.3);
+  buildPicnicTable(24.5, 16.3, -0.4);
+
+  const sign = new THREE.Mesh(
+    new THREE.BoxGeometry(1.25, 0.45, 0.08),
+    new THREE.MeshStandardMaterial({ color: 0x2e7d32, roughness: 0.8 })
+  );
+  sign.position.set(18.2, sampleTerrainY(18.2, 15.0) + 0.8, 15.0);
+  sign.rotation.y = -0.25;
+  scene.add(sign);
+
+  [
+    [18.5, 18.8, 0xff7043],
+    [20.7, 20.7, 0x29b6f6],
+    [22.8, 18.2, 0xffca28],
+    [24.0, 16.0, 0x66bb6a],
+    [19.5, 15.2, 0xab47bc],
+  ].forEach(([x, z, color]) => buildCoastalPedestrian(x, z, color));
+}
+buildRecreationalArea();
 
 // Water channels connecting POND1 ↔ POND2 ↔ FROM LAKES source.
 function buildChannel(fromX, fromZ, toX, toZ, width = 0.55) {
@@ -1816,6 +3788,8 @@ makeFish(-22, 0,  0.20, 4.0, 0xffeb3b, 2.0);  // yellow
 makeFish(-25, 8,  0.20, 3.0, 0xff5722, 1.8);  // bright orange
 makeFish(-28, -8, 0.20, 4.5, 0xe91e63, 2.0);  // pink
 makeFish(-20, 12, 0.20, 2.5, 0xfdd835, 1.6);  // yellow-gold
+makeFish(-19, -9, 0.22, 1.8, 0x00e5ff, 1.3);  // shallow-water fish near beach
+makeFish(-19, 7,  0.22, 1.6, 0x76ff03, 1.2);  // shallow-water fish near beach
 
 // ---------- AGROFORESTRY TERRACE ----------
 // Soil-conservation feature from the reference: stepped soil tiers with
@@ -2050,7 +4024,7 @@ buildTractor(8, -13, 2.1);    // second tractor on south plain, facing west
 // Dam: yaw 1.27 rad rotates the 5-wide wall so it spans ACROSS the river
 // (river tangent here is roughly (-0.95, 0, 0.30), so perpendicular yaw ≈ 1.27).
 buildDam(9.5, 0.8, 1.27);    // on the main river upstream
-buildWindmill(13, 5, 0);     // east plain near small mountain
+buildWindmill(14, 14, 0);    // open grass north of industrial, clear of roads, between POND1 and terrace
 
 // ---------- FLOW ARROWS (Surface runoff direction) ----------
 function makeArrow(from, to, color = 0x26a69a) {
@@ -2135,30 +4109,47 @@ buildPercolationArrows();
 // ---------- LABELS (DOM overlay) ----------
 const labelDefs = [
   { id: 'precip', text: 'Precipitation', pos: new THREE.Vector3(14, 12, 4) },
-  { id: 'evap', text: 'Evaporation', pos: new THREE.Vector3(-22, 12, 0) },
+  { id: 'evap', text: 'Ocean Evaporation', pos: new THREE.Vector3(-22, 12, 0) },
   { id: 'cond', text: 'Condensation', pos: new THREE.Vector3(0, 19, 4) },
   { id: 'runoff', text: 'Surface Runoff', pos: new THREE.Vector3(4, 3.5, 2.5) },
   { id: 'infil', text: 'Infiltration / Percolation', pos: new THREE.Vector3(-7.5, 4.5, 21) },
   { id: 'ocean', text: 'Ocean', pos: new THREE.Vector3(-22, 1, -10) },
   { id: 'mountain', text: 'Mountain', pos: new THREE.Vector3(18, 8, 6) },
   { id: 'transp', text: 'Transpiration', pos: new THREE.Vector3(5, 9, 11) },
-  { id: 'supply', text: 'Water Supply', pos: new THREE.Vector3(-6,  2.0, 5.5) },
-  { id: 'storm',  text: 'Stormwater',  pos: new THREE.Vector3(-10, 2.0, 5.5) },
+  { id: 'supply', text: 'Water Supply', pos: new THREE.Vector3(-6.0, 1.2, 18.0) },
+  { id: 'storm',  text: 'Stormwater',  pos: new THREE.Vector3(-9.4, 1.2, 18.0) },
+  { id: 'erosion',text: 'Soil Erosion',pos: new THREE.Vector3(0.5, 2.5, 17) },
+  { id: 'flood',  text: 'Flooding',    pos: new THREE.Vector3(-1, 2.5, -3.5) },
+  { id: 'nbs',    text: '← NBS prevents this', pos: new THREE.Vector3(5, 3.7, 17) },
   { id: 'cloudForm', text: 'Cloud Formation', pos: new THREE.Vector3(0, 22, 4) },
-  { id: 'fromSoil',  text: 'From Soil',       pos: new THREE.Vector3(12, 4.5, -16) },
-  { id: 'fromStream',text: 'From Streams',    pos: new THREE.Vector3(22, 5.0,  3) },
-  { id: 'fromVeg',   text: 'From Vegetation', pos: new THREE.Vector3(25, 4.0,  7) },
-  { id: 'fromLake',  text: 'From Lakes',      pos: new THREE.Vector3(25, 4.0, 15) },
-  { id: 'fromField', text: 'From Fields',     pos: new THREE.Vector3(0,  4.8, -10) },
+  { id: 'fromSoil',  text: 'Soil Evaporation',       pos: new THREE.Vector3(12, 4.5, -16) },
+  { id: 'fromStream',text: 'Stream Evaporation',     pos: new THREE.Vector3(22, 5.0,  3) },
+  { id: 'fromVeg',   text: 'Vegetation Evaporation', pos: new THREE.Vector3(25, 4.0,  7) },
+  { id: 'fromLake',  text: 'Lake Evaporation',       pos: new THREE.Vector3(25, 4.0, 15) },
+  { id: 'fromField', text: 'Field Evaporation',      pos: new THREE.Vector3(0,  4.8, -10) },
+  { id: 'beach',     text: 'Beach',           pos: new THREE.Vector3(-16.8, 1.3, -12) },
+  { id: 'coastalCity', text: 'Coastal City',   pos: new THREE.Vector3(-11, 3.4, -12.4) },
+  { id: 'mall',      text: 'Mall',            pos: new THREE.Vector3(-8.4, 2.9, -13.8) },
+  { id: 'school',    text: 'School',          pos: new THREE.Vector3(-7.2, 2.4, 7.4) },
   { id: 'pond1',     text: 'Pond 1',          pos: new THREE.Vector3(17, 1.5, 17) },
   { id: 'pond2',     text: 'Pond 2',          pos: new THREE.Vector3(22, 1.5, 19) },
+  { id: 'recreation',text: 'Recreation Area', pos: new THREE.Vector3(21, 2.3, 18) },
   { id: 'cropForest',text: 'Crop & Forestry', pos: new THREE.Vector3(8, 3.2, 14.6) },
   { id: 'tiedRidges',text: 'Tied Ridges',     pos: new THREE.Vector3(8, 2.5, 17) },
   { id: 'industrial',text: 'Industrial Area', pos: new THREE.Vector3(15, 4.5, 10) },
+  { id: 'dump',      text: 'Industrial Dump', pos: new THREE.Vector3(20.5, 2.6, 10.5) },
   { id: 'harbour',   text: 'Harbour',         pos: new THREE.Vector3(-18.5, 2.5, 0) },
+  { id: 'cityscape', text: 'City',            pos: new THREE.Vector3(-12, 9, 13) },
   { id: 'deforest',  text: 'Deforestation',   pos: new THREE.Vector3(3, 2.5, 9.5) },
   { id: 'forage',    text: 'Forage Grasses',  pos: new THREE.Vector3(8, 2.0, 19.4) },
   { id: 'evapHeader',text: 'Evaporation',     pos: new THREE.Vector3(8, 10, -3) },
+  // Additional water-cycle labels
+  { id: 'snowCap',   text: 'Snow Cap',        pos: new THREE.Vector3(18, 11, -6) },
+  { id: 'estuary',   text: 'Estuary',         pos: new THREE.Vector3(-15, 2.5, -1) },
+  { id: 'reservoir', text: 'Reservoir / Dam', pos: new THREE.Vector3(9.5, 3.5, 0.8) },
+  { id: 'aquaculture', text: 'Aquaculture',   pos: new THREE.Vector3(3, 2.5, -5) },
+  { id: 'riparian',  text: 'Riparian Zone',   pos: new THREE.Vector3(-3.5, 2.0, 5.8) },
+  { id: 'watershed', text: 'Watershed',       pos: new THREE.Vector3(22, 14, 0) },
 ];
 const labelsContainer = document.getElementById('labels');
 labelDefs.forEach(def => {
@@ -2224,77 +4215,105 @@ function updateCameraReset(dt) {
 }
 
 // ---------- TOUR ----------
-// 8-stop narrated camera tour through the water cycle.
+// Narrated camera tour through the water cycle.
 const tourStops = [
   {
     title: 'The Water Cycle',
-    text: 'Welcome — this scene shows water moving between ocean, atmosphere and land. We\'ll follow a drop through each stage of the cycle.',
+    text: 'Welcome. Earth has a fixed amount of water — but it constantly moves between ocean, atmosphere, land, rivers, soil, groundwater, ecosystems, farms, and cities. This tour follows that journey, and shows how landscapes shape it.',
     cam: new THREE.Vector3(38, 28, 42),
     target: new THREE.Vector3(0, 4, 0),
-    labels: [], // null = no dimming on overview
+    labels: [],
   },
   {
     title: '1. Ocean & Evaporation',
-    text: 'About 97% of Earth\'s water sits in the oceans. The sun heats the surface, and water rises as invisible vapor — the orange arrows mark evaporation from soil, streams, fields, and the sea.',
+    text: 'Oceans hold about 97% of Earth\'s water. Solar energy warms the surface and water molecules escape as invisible vapor — about 86% of all evaporation comes from the sea. This is the largest engine of the entire water cycle.',
     cam: new THREE.Vector3(-5, 18, 25),
     target: new THREE.Vector3(-22, 8, 0),
-    labels: ['ocean', 'evap', 'evapHeader', 'fromSoil', 'fromStream', 'fromVeg', 'fromLake', 'fromField'],
+    labels: ['ocean', 'evap', 'evapHeader'],
   },
   {
-    title: '2. Cloud Formation',
-    text: 'High in the atmosphere the vapor cools and condenses into tiny water droplets that cluster as clouds — when enough collect, they become heavy enough to fall.',
+    title: '2. Land Evaporation',
+    text: 'Land also evaporates water — from wet soil, streams, lakes, ponds, and flooded fields like rice paddies. Hot, dry, windy weather pushes this rate up. Together these "blue water" fluxes feed atmospheric moisture between rains.',
+    cam: new THREE.Vector3(30, 16, 28),
+    target: new THREE.Vector3(15, 4, 0),
+    labels: ['evapHeader', 'fromSoil', 'fromStream', 'fromLake', 'fromField'],
+  },
+  {
+    title: '3. Transpiration',
+    text: 'Plants pull water up through their roots and release it from tiny leaf pores called stomata. Evaporation + transpiration = "evapotranspiration", and forests can return more moisture to the air than the ocean of equal area.',
+    cam: new THREE.Vector3(30, 14, 25),
+    target: new THREE.Vector3(12, 4, 4),
+    labels: ['transp', 'fromVeg'],
+  },
+  {
+    title: '4. Condensation & Cloud Formation',
+    text: 'Warm, moist air rises, expands, and cools. When it reaches the dew point, vapor condenses onto microscopic dust or salt particles ("condensation nuclei"), forming tiny cloud droplets or ice crystals — the cloud is born.',
     cam: new THREE.Vector3(15, 24, 30),
     target: new THREE.Vector3(8, 18, 0),
     labels: ['cloudForm', 'cond'],
   },
   {
-    title: '3. Precipitation',
-    text: 'Water returns to the surface as rain, snow, or hail. Here the rain falls over the mountain — the highest catchment in the watershed.',
+    title: '5. Precipitation & Snow Caps',
+    text: 'When droplets grow heavy enough, gravity wins and they fall as rain, snow, or hail. Mountains force air upward (orographic lift), squeezing out extra precipitation. High peaks store water as snow and ice that slowly melts.',
     cam: new THREE.Vector3(28, 18, 30),
     target: new THREE.Vector3(15, 6, 4),
-    labels: ['precip', 'mountain'],
+    labels: ['precip', 'mountain', 'snowCap'],
   },
   {
-    title: '4. Surface Runoff',
-    text: 'Water that doesn\'t soak in flows downhill, gathering into streams and rivers. The meandering river carries it across the plain back toward the ocean.',
+    title: '6. Surface Runoff & River Network',
+    text: 'Water that doesn\'t soak in becomes runoff. Gravity gathers it into rills, streams, and rivers — a "watershed" is the entire area that drains to one outlet. Meandering rivers carry water, sediment, and nutrients toward the sea.',
     cam: new THREE.Vector3(20, 14, 35),
     target: new THREE.Vector3(0, 1, 0),
-    labels: ['runoff'],
+    labels: ['runoff', 'watershed', 'riparian'],
   },
   {
-    title: '5. Infiltration & Percolation',
-    text: 'Some water soaks into the ground. (A) Infiltration enters the soil, (B) Percolation moves deeper, (C) Groundwater flows slowly through the saturated rock — feeding springs and wells.',
+    title: '7. Infiltration, Percolation & Groundwater',
+    text: 'Surface water seeps into soil (infiltration), then moves downward through pores (percolation). Below the water table, it becomes groundwater that flows slowly through saturated rock. This hidden reservoir feeds springs, wells, and rivers between rains.',
     cam: new THREE.Vector3(15, 10, 38),
     target: new THREE.Vector3(0, -2, 18),
     labels: ['infil'],
   },
   {
-    title: '6. Transpiration & Deforestation',
-    text: 'Plants pull water up from their roots and release it as vapor through their leaves. Forests are huge contributors to atmospheric moisture — but deforestation breaks this loop.',
-    cam: new THREE.Vector3(30, 14, 25),
-    target: new THREE.Vector3(8, 4, -5),
-    labels: ['transp', 'deforest'],
+    title: '8. Floodplains',
+    text: 'When rivers receive more water than their channel can carry, they spill over the banks onto the floodplain. Healthy floodplains are not a disaster — they spread the flood out, recharge groundwater, and renew soil with fresh sediment.',
+    cam: new THREE.Vector3(15, 12, 30),
+    target: new THREE.Vector3(-1, 1, -3),
+    labels: ['flood', 'runoff'],
   },
   {
-    title: '7. Nature-Based Solutions',
-    text: 'Ponds capture floodwater, tied-ridges hold rainfall in place, and agroforestry mixes crops with trees — all keep water on the land longer and recharge groundwater.',
+    title: '9. Deforestation & Erosion',
+    text: 'Vegetation slows runoff, holds soil with roots, and recycles water through transpiration. When land is cleared, raindrops detach the topsoil, gullies cut into bare ground, and sediment-laden runoff reaches rivers faster — worsening floods downstream.',
+    cam: new THREE.Vector3(30, 14, 25),
+    target: new THREE.Vector3(4, 4, 12),
+    labels: ['deforest', 'erosion', 'transp'],
+  },
+  {
+    title: '10. Nature-Based Solutions',
+    text: 'Ponds, tied ridges, agroforestry, and ground cover keep water on the land longer. They slow runoff, reduce flood peaks, recharge groundwater, and protect topsoil — turning the same rainfall into a benefit instead of damage.',
     cam: new THREE.Vector3(20, 14, 35),
     target: new THREE.Vector3(13, 2, 16),
-    labels: ['pond1', 'pond2', 'tiedRidges', 'cropForest', 'forage'],
+    labels: ['pond1', 'pond2', 'tiedRidges', 'cropForest', 'forage', 'nbs'],
   },
   {
-    title: '8. Human Use',
-    text: 'People intercept the cycle: water supply pipes draw from the river, stormwater drains carry runoff back, the harbour ties commerce to the sea, and industries draw and discharge.',
+    title: '11. Reservoir & Water Supply',
+    text: 'A dam captures river water in a reservoir, storing it for cities, irrigation, and energy. Water supply pipes deliver it to homes; storm drains return surplus runoff. Paved streets and roofs reduce infiltration, so cities behave like fast watersheds.',
     cam: new THREE.Vector3(-10, 16, 30),
     target: new THREE.Vector3(-3, 4, 8),
-    labels: ['supply', 'storm', 'harbour', 'industrial'],
+    labels: ['reservoir', 'supply', 'storm', 'cityscape', 'industrial'],
   },
   {
-    title: '9. Back to the Ocean',
-    text: 'The river empties into the ocean — fish, boats, the harbour all depend on it. Evaporation begins again, and the cycle continues endlessly.',
+    title: '12. Estuary & Aquaculture',
+    text: 'Where the river meets the sea is the estuary — brackish, nutrient-rich, and biologically the most productive habitat on Earth. People use coastal waters for fisheries and aquaculture (fish farming), which depend on clean upstream water.',
+    cam: new THREE.Vector3(-25, 12, 25),
+    target: new THREE.Vector3(-22, 1, -2),
+    labels: ['estuary', 'aquaculture', 'harbour', 'beach'],
+  },
+  {
+    title: '13. Return to the Ocean',
+    text: 'The river finally empties into the sea, completing the loop. Solar energy is already pulling new vapor back into the air, and the cycle starts over. The water you drank today has been doing this for billions of years.',
     cam: new THREE.Vector3(-30, 14, 25),
     target: new THREE.Vector3(-22, 2, 0),
-    labels: ['ocean', 'harbour'],
+    labels: ['ocean', 'evap', 'estuary'],
   },
 ];
 
@@ -2611,11 +4630,65 @@ function animate() {
   }
   transGeo.attributes.position.needsUpdate = true;
 
+  // Industrial smoke — rise + drift + recycle on age
+  const sp = smokeGeo.attributes.position.array;
+  for (let i = 0; i < SMOKE_COUNT; i++) {
+    smokeAges[i] += dt;
+    if (smokeAges[i] > SMOKE_LIFE) {
+      seedSmoke(i, true);
+    } else {
+      sp[i * 3]     += smokeDrift[i * 2]     * dt;
+      sp[i * 3 + 1] += 0.95 * dt;          // upward rise
+      sp[i * 3 + 2] += smokeDrift[i * 2 + 1] * dt;
+    }
+  }
+  smokeGeo.attributes.position.needsUpdate = true;
+
   // Pulse land-evaporation arrows so they read as rising vapor plumes
   evapArrows.forEach((a, i) => {
     const phase = a.userData.basePhase;
     a.scale.y = 1 + Math.sin(t * 1.6 + phase) * 0.08;
     a.rotation.y = Math.sin(t * 0.3 + i) * 0.12;
+  });
+
+  // Drive cars along their paths (closed loops or back-and-forth segments)
+  movingCars.forEach(c => {
+    const ud = c.userData;
+    // Compute total cumulative length of the path (close it if 4+ points)
+    if (!ud.cumLen) {
+      ud.cumLen = [0];
+      const closed = ud.path.length > 2;
+      const n = ud.path.length;
+      for (let i = 1; i < n + (closed ? 1 : 0); i++) {
+        const a = ud.path[(i - 1) % n];
+        const b = ud.path[i % n];
+        const seg = Math.hypot(b.x - a.x, b.z - a.z);
+        ud.cumLen.push(ud.cumLen[ud.cumLen.length - 1] + seg);
+      }
+      ud.totalLen = ud.cumLen[ud.cumLen.length - 1];
+      ud.closed = closed;
+    }
+    ud.progress += ud.speed * dt;
+    let pos;
+    if (ud.closed) {
+      pos = ud.progress % ud.totalLen;
+    } else {
+      // Ping-pong: bounce back and forth on open segment
+      const cycle = ud.progress % (ud.totalLen * 2);
+      pos = cycle < ud.totalLen ? cycle : ud.totalLen * 2 - cycle;
+    }
+    // Find segment
+    let i = 0;
+    while (i < ud.cumLen.length - 1 && ud.cumLen[i + 1] < pos) i++;
+    const a = ud.path[i % ud.path.length];
+    const b = ud.path[(i + 1) % ud.path.length];
+    const segLen = ud.cumLen[i + 1] - ud.cumLen[i];
+    const f = segLen > 0 ? (pos - ud.cumLen[i]) / segLen : 0;
+    const x = a.x + (b.x - a.x) * f;
+    const z = a.z + (b.z - a.z) * f;
+    c.position.set(x, sampleTerrainY(x, z) + 0.08, z);
+    const angle = Math.atan2(b.z - a.z, b.x - a.x);
+    c.rotation.y = -angle;
   });
 
   // Spin windmill blades
@@ -2632,6 +4705,26 @@ function animate() {
     b.position.z = ud.baseZ + Math.sin(t * 0.15 + ud.yawPhase) * 0.5;
   });
 
+  // Seagulls circling above the ocean — flap wings, bob gently
+  birdMeshes.forEach(b => {
+    const ud = b.userData;
+    const angle = t * ud.speed + ud.phase;
+    b.position.x = ud.cx + Math.cos(angle) * ud.radius;
+    b.position.z = ud.cz + Math.sin(angle) * ud.radius;
+    b.position.y = ud.y + Math.sin(t * 1.8 + ud.phase) * 0.3;
+    b.rotation.y = -angle - Math.PI / 2;
+    const flap = Math.sin(t * 9 + ud.phase) * 0.45;
+    ud.leftWing.rotation.z = flap;
+    ud.rightWing.rotation.z = -flap;
+  });
+
+  // Seaweed sway — each frond rocks slightly with the current
+  seaweedClusters.forEach((c, ci) => {
+    c.children.forEach((frond, fi) => {
+      frond.rotation.z = Math.sin(t * 1.6 + ci + fi * 0.7) * 0.15;
+    });
+  });
+
   // Swim fish in circles within their water bodies
   fishMeshes.forEach(f => {
     const ud = f.userData;
@@ -2646,9 +4739,6 @@ function animate() {
   // Scroll river water texture (downstream flow) — fast enough to read
   // as moving water, not so fast it looks like a screensaver.
   riverNet.waterTex.offset.y -= dt * 0.9;
-
-  // Drive cow animation if loaded
-  if (cowMixer) cowMixer.update(dt);
 
   // Pulse percolation arrows downward
   percolationArrows.forEach(a => {
