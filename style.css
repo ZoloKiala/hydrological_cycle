@@ -21,16 +21,70 @@ canvas {
   display: block;
 }
 
+#brand-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 24px;
+  /* IWMI signature blue — the white logo reads cleanly on top */
+  background: linear-gradient(135deg, #0d47a1 0%, #1565c0 50%, #1976d2 100%);
+  border-bottom: 3px solid #f57c00;
+  z-index: 20;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+}
+
+#iwmi-logo,
+.logo-fallback {
+  height: 44px;
+  width: auto;
+}
+
+.logo-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  color: #0d47a1;
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: 1.5px;
+  padding: 8px 14px;
+  border-radius: 6px;
+  height: 44px;
+  box-sizing: border-box;
+}
+
+.brand-text h1 {
+  font-size: 19px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 2px 0;
+  letter-spacing: 0.2px;
+}
+
+.brand-text p {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.85);
+  margin: 0;
+  letter-spacing: 0.3px;
+}
+
 #ui {
   position: fixed;
-  top: 20px;
+  top: 86px;
   left: 20px;
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(8px);
-  border-radius: 12px;
+  border-radius: 8px;
   padding: 18px 22px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   max-width: 280px;
+  max-height: calc(100vh - 112px);
+  overflow: auto;
   z-index: 10;
 }
 
@@ -132,9 +186,36 @@ canvas {
   background: #1565c0;
 }
 
+.controls button[aria-pressed="false"] {
+  background: #607d8b;
+}
+
 .hint {
   font-size: 11px;
   color: #78909c;
+  font-style: italic;
+}
+
+.contact {
+  font-size: 11px;
+  color: #37474f;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(13, 71, 161, 0.12);
+  font-weight: 500;
+}
+.contact a {
+  color: #0d47a1;
+  text-decoration: none;
+}
+.contact a:hover {
+  text-decoration: underline;
+}
+
+.copyright {
+  font-size: 10px;
+  color: #607d8b;
+  margin-top: 4px;
   font-style: italic;
 }
 
@@ -145,10 +226,239 @@ canvas {
   line-height: 1.35;
 }
 
-.credits a {
+.credits a,
+.contact a {
   color: #546e7a;
   text-decoration: underline;
 }
+
+#tour-start {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  background: #0d47a1;
+  color: white;
+  border: none;
+  padding: 14px 26px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(13, 71, 161, 0.45);
+  z-index: 30;
+  transition: transform 0.15s, background 0.2s, box-shadow 0.2s;
+  animation: tour-pulse 2.2s ease-in-out infinite;
+}
+#tour-start:hover {
+  background: #1565c0;
+  transform: translateY(-2px) scale(1.03);
+  animation-play-state: paused;
+}
+#tour-start.tour-hidden { display: none; }
+
+@keyframes tour-pulse {
+  0%, 100% { box-shadow: 0 6px 18px rgba(13, 71, 161, 0.45), 0 0 0 0 rgba(245, 124, 0, 0.55); }
+  50%      { box-shadow: 0 6px 18px rgba(13, 71, 161, 0.45), 0 0 0 14px rgba(245, 124, 0, 0); }
+}
+
+/* ---------- WELCOME MODAL ---------- */
+#welcome {
+  position: fixed;
+  inset: 0;
+  background: rgba(13, 71, 161, 0.4);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  transition: opacity 0.3s;
+}
+#welcome.welcome-hidden { opacity: 0; pointer-events: none; }
+.welcome-card {
+  background: white;
+  border-radius: 8px;
+  padding: 28px 32px;
+  max-width: 440px;
+  margin: 0 16px;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.35);
+  text-align: center;
+}
+.welcome-card h2 {
+  color: #0d47a1;
+  font-size: 24px;
+  margin-bottom: 10px;
+}
+.welcome-card p {
+  color: #37474f;
+  font-size: 14px;
+  line-height: 1.55;
+  margin-bottom: 12px;
+}
+.welcome-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+#welcome-close,
+#welcome-tour {
+  background: #0d47a1;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 22px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+#welcome-close {
+  background: #607d8b;
+}
+
+#welcome-close:hover,
+#welcome-tour:hover { background: #1565c0; }
+
+/* ---------- LOADER ---------- */
+#loader {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(180deg, #b3e5fc 0%, #87ceeb 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  z-index: 110;
+  transition: opacity 0.5s;
+}
+#loader.loader-hidden { opacity: 0; pointer-events: none; }
+#loader p { color: #0d47a1; font-weight: 600; letter-spacing: 0.5px; }
+.loader-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(13, 71, 161, 0.18);
+  border-top-color: #0d47a1;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- COLLAPSIBLE SIDE PANEL ---------- */
+.ui-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+#ui-collapse {
+  background: rgba(13, 71, 161, 0.1);
+  color: #0d47a1;
+  border: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1;
+}
+#ui-collapse:hover { background: rgba(13, 71, 161, 0.2); }
+#ui.ui-collapsed { padding: 14px 18px; }
+#ui.ui-collapsed #ui-body { display: none; }
+
+/* ---------- KBD BADGES IN HINT ---------- */
+.hint kbd {
+  background: #455a64;
+  color: white;
+  font-family: inherit;
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin: 0 1px;
+  font-weight: 600;
+  vertical-align: 1px;
+}
+
+#tour-panel {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  width: min(320px, calc(100vw - 40px));
+  background: rgba(255,255,255,0.95);
+  backdrop-filter: blur(8px);
+  border-radius: 8px;
+  padding: 14px 18px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+  z-index: 30;
+  font-family: inherit;
+}
+#tour-panel.tour-hidden { display: none; }
+.tour-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: #78909c;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+.tour-header-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+#tour-close, #tour-voice {
+  background: none;
+  border: none;
+  font-size: 12px;
+  font-weight: 700;
+  color: #607d8b;
+  cursor: pointer;
+  line-height: 1;
+  padding: 6px 8px;
+  border-radius: 4px;
+  transition: background 0.15s, color 0.15s;
+}
+#tour-close { font-size: 16px; }
+#tour-close:hover { color: #d32f2f; }
+#tour-voice:hover { background: rgba(13, 71, 161, 0.1); }
+#tour-voice.voice-off { opacity: 0.4; }
+#tour-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0d47a1;
+  margin-bottom: 8px;
+}
+#tour-text {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #37474f;
+  margin-bottom: 12px;
+  min-height: 60px;
+}
+.tour-buttons {
+  display: flex;
+  gap: 6px;
+}
+.tour-buttons button {
+  flex: 1;
+  background: #0d47a1;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.tour-buttons button:hover { background: #1565c0; }
+.tour-buttons button:disabled { background: #b0bec5; cursor: not-allowed; }
 
 #labels {
   position: fixed;
@@ -163,7 +473,7 @@ canvas {
   background: rgba(13, 71, 161, 0.92);
   color: white;
   padding: 4px 10px;
-  border-radius: 14px;
+  border-radius: 8px;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.5px;
@@ -187,4 +497,108 @@ canvas {
 
 .label.hidden {
   opacity: 0;
+}
+
+.label.tour-dimmed {
+  opacity: 0.18;
+  transform: translate(-50%, -50%) scale(0.85);
+}
+
+.label.tour-highlighted {
+  background: #f57c00;
+  transform: translate(-50%, -50%) scale(1.18);
+  box-shadow: 0 0 14px rgba(245, 124, 0, 0.7), 0 4px 12px rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  z-index: 10;
+}
+.label.tour-highlighted::after {
+  background: rgba(245, 124, 0, 0.8);
+}
+
+@media (max-width: 760px) {
+  #brand-bar {
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px 12px;
+  }
+
+  #iwmi-logo,
+  .logo-fallback {
+    height: 34px;
+  }
+
+  .brand-text h1 {
+    font-size: 15px;
+  }
+
+  .brand-text p {
+    font-size: 10px;
+  }
+
+  #ui {
+    top: 68px;
+    left: 10px;
+    max-width: min(300px, calc(100vw - 20px));
+    max-height: 44vh;
+    padding: 12px 14px;
+  }
+
+  #ui h1 {
+    font-size: 18px;
+  }
+
+  .legend {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 10px;
+  }
+
+  .legend-item {
+    font-size: 12px;
+  }
+
+  .controls button {
+    flex: 1 1 88px;
+  }
+
+  #tour-panel {
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    width: auto;
+    padding: 12px 14px;
+  }
+
+  #tour-start {
+    right: 10px;
+    bottom: 10px;
+    padding: 12px 18px;
+  }
+
+  .label {
+    font-size: 9px;
+    padding: 3px 7px;
+  }
+}
+
+@media (max-width: 480px) {
+  #ui:not(.ui-collapsed) {
+    right: 10px;
+  }
+
+  .welcome-card {
+    padding: 22px 18px;
+  }
+
+  .welcome-actions {
+    flex-direction: column;
+  }
+
+  .tour-buttons {
+    flex-wrap: wrap;
+  }
+
+  .tour-buttons button {
+    flex: 1 1 30%;
+  }
 }

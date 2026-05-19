@@ -30,6 +30,18 @@ controls.minDistance = 18;
 controls.maxDistance = 120;
 controls.maxPolarAngle = Math.PI / 2.05;
 controls.target.set(0, 4, 0);
+controls.autoRotateSpeed = 0.35;  // very gentle when idle
+
+// Idle auto-rotate: kicks in 15 s after the last user interaction (and only
+// when no tour or camera-reset is running). Resumes on any interaction.
+let lastInteract = performance.now();
+const IDLE_MS = 15000;
+['start'].forEach(ev =>
+  controls.addEventListener(ev, () => { lastInteract = performance.now(); })
+);
+['mousedown', 'touchstart', 'keydown', 'wheel'].forEach(ev =>
+  window.addEventListener(ev, () => { lastInteract = performance.now(); }, { passive: true })
+);
 
 // ---------- LIGHTING ----------
 const ambient = new THREE.AmbientLight(0xffffff, 0.55);
@@ -330,28 +342,39 @@ function buildRiverNetwork() {
   });
 
   // Control points: [x, z, widthFactor].
-  // Main river starts at the FOOT of the big mountain (no ribbon on the slope)
-  // and flows out across the plain to the ocean.
+  // Pronounced meanders — z amplitude ±3, wavelength ~3 x-units, six bends.
+  // Centripetal CatmullRom keeps the curve smooth through the sharp swings.
   const mainRiver = [
-    [9.5, 0.8, 0.92],   [7.0, 1.6, 1.00],
-    [4.0, 2.0, 1.08],   [1.0, 1.8, 1.16],   [-2.0, 1.2, 1.26],
-    [-5.0, 0.5, 1.40],  [-8.0, -0.1, 1.60], [-10.5, -0.6, 1.80],
-    [-13.0, -0.9, 2.05], [-15.5, -1.0, 2.25], [-17.5, -1.0, 2.45],
-    // Delta extending across the cliff edge (x=-18) into the basin so the
-    // ribbon visibly meets the ocean surface instead of stopping on land.
-    [-19.0, -1.0, 2.60], [-21.0, -1.0, 2.75],
+    [9.5,  0.8, 0.92],
+    [8.5,  3.0, 0.95],    // BEND 1 — north
+    [7.0,  1.5, 0.99],
+    [5.5, -2.0, 1.04],    // BEND 2 — south
+    [4.0,  0.5, 1.10],
+    [2.5,  3.0, 1.16],    // BEND 3 — north
+    [1.0,  0.5, 1.22],
+    [-0.5,-2.0, 1.30],    // BEND 4 — south
+    [-2.0, 0.5, 1.38],
+    [-3.5, 2.8, 1.46],    // BEND 5 — north
+    [-5.0, 0.5, 1.55],
+    [-6.5,-2.0, 1.65],    // BEND 6 — south
+    [-8.0, 0.0, 1.75],
+    [-10.0, 1.2, 1.85],   // gentle dampening
+    [-12.5,-0.4, 2.00],
+    [-15.0,-1.0, 2.20],
+    [-17.5,-1.0, 2.45],
+    // Delta extending across the cliff edge into the basin
+    [-19.0,-1.0, 2.60], [-21.0,-1.0, 2.75],
   ];
-  // East tributary: now originates UNDER the FROM STREAMS evap arrow
-  // at (22, 3), flows southwest, then joins the main river at (8.5, 1.8).
+  // East tributary joins main river at the (7, 1.5) crossing (after BEND 1)
   const tributaryEast = [
-    [22, 3, 0.32], [19, 2.4, 0.42], [16, 1.6, 0.52],
-    [14.5, 0.9, 0.62], [11.5, 1.4, 0.72], [8.5, 1.8, 0.82],
+    [22, 3, 0.32], [19, 2.5, 0.42], [16, 2.0, 0.52],
+    [13, 1.8, 0.62], [10, 1.6, 0.72], [8.5, 1.5, 0.80], [7, 1.5, 0.82],
   ];
-  // South tributary: starts from a wet patch on the south plain and
-  // flows northwest to join the main river. (Small mountain removed.)
+  // South tributary drains the south plain and joins main at the
+  // southernmost bend (-6.5, -2.0)
   const tributarySouth = [
-    [12, -8, 0.30], [10, -5, 0.40], [7, -2, 0.55],
-    [4, 0.5, 0.7],  [1, 1.6, 0.9],  [-2, 2.0, 1.0],
+    [10, -15, 0.30], [8, -12, 0.38], [5, -9, 0.46],
+    [2, -6, 0.55],   [-1, -4.0, 0.70], [-4, -2.8, 0.85], [-6.5, -2.0, 1.0],
   ];
 
   function buildRibbon(controlPoints, baseWidth) {
@@ -594,6 +617,104 @@ makeTreeCluster(-3, 16,  7, 2.6);  // north plain near town
 makeTreeCluster(10, -2,  8, 2.6);  // mid-east plain
 makeTreeCluster(8, -17,  6, 2.4);  // far south-east plain
 makeTreeCluster(-12, 4,  6, 2.2);  // west coast strip
+// ---------- DEFORESTATION PATCH ----------
+function buildDeforestation(cx, cz, width = 8, depth = 6) {
+  const yT = sampleTerrainY(cx, cz);
+  // Scale all sub-counts down for smaller patches
+  const scale = (width * depth) / 48;  // 1.0 for the default 8×6
+  // Bare exposed soil
+  const dirt = new THREE.Mesh(
+    new THREE.BoxGeometry(width, 0.10, depth),
+    new THREE.MeshStandardMaterial({ color: 0x8d4f33, roughness: 0.98 })
+  );
+  dirt.position.set(cx, yT + 0.05, cz);
+  dirt.receiveShadow = true;
+  scene.add(dirt);
+  // Darker scattered patches
+  const patchCount = Math.max(8, Math.floor(22 * scale));
+  for (let i = 0; i < patchCount; i++) {
+    const patch = new THREE.Mesh(
+      new THREE.CircleGeometry(0.3 + Math.random() * 0.35, 10),
+      new THREE.MeshStandardMaterial({ color: 0x3e2723, roughness: 1 })
+    );
+    patch.rotation.x = -Math.PI / 2;
+    patch.position.set(
+      cx + (Math.random() - 0.5) * (width - 1),
+      yT + 0.105,
+      cz + (Math.random() - 0.5) * (depth - 1)
+    );
+    scene.add(patch);
+  }
+  // Tree STUMPS
+  const stumpMat = new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 1 });
+  const cutMat = new THREE.MeshStandardMaterial({ color: 0xc9a663, roughness: 0.85 });
+  const stumpCount = Math.max(5, Math.floor(14 * scale));
+  for (let i = 0; i < stumpCount; i++) {
+    const sx = cx + (Math.random() - 0.5) * (width - 1);
+    const sz = cz + (Math.random() - 0.5) * (depth - 1);
+    const r = 0.18 + Math.random() * 0.10;
+    const h = 0.4 + Math.random() * 0.20;
+    const stump = new THREE.Mesh(
+      new THREE.CylinderGeometry(r * 0.85, r, h, 10), stumpMat
+    );
+    stump.position.set(sx, yT + h / 2 + 0.04, sz);
+    stump.castShadow = true;
+    scene.add(stump);
+    const cut = new THREE.Mesh(
+      new THREE.CylinderGeometry(r * 0.82, r * 0.82, 0.04, 10), cutMat
+    );
+    cut.position.set(sx, yT + h + 0.04, sz);
+    scene.add(cut);
+  }
+  // FALLEN LOGS
+  const logMat = new THREE.MeshStandardMaterial({ color: 0x4e342e, roughness: 1 });
+  const logCount = Math.max(2, Math.floor(5 * scale));
+  for (let i = 0; i < logCount; i++) {
+    const logLen = Math.min(width * 0.35, 1.8 + Math.random() * 0.8);
+    const log = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.22, 0.22, logLen, 10), logMat
+    );
+    log.position.set(
+      cx + (Math.random() - 0.5) * (width - 1.5),
+      yT + 0.28,
+      cz + (Math.random() - 0.5) * (depth - 1.5)
+    );
+    log.rotation.z = Math.PI / 2;
+    log.rotation.y = Math.random() * Math.PI;
+    log.castShadow = true;
+    scene.add(log);
+  }
+  // Surviving live trees ringing the edges (scaled to patch size)
+  const hw = width / 2 - 0.4, hd = depth / 2 - 0.4;
+  const edgeOffsets = scale >= 0.6 ? [
+    [-hw, -hd * 0.7], [-hw, 0], [-hw, hd * 0.7],
+    [ hw, -hd * 0.7], [ hw, 0], [ hw, hd * 0.7],
+    [-hw * 0.55, -hd], [ hw * 0.55, -hd],
+    [-hw * 0.55,  hd], [ hw * 0.55,  hd],
+  ] : [
+    [-hw, 0], [hw, 0], [0, -hd], [0, hd],
+  ];
+  edgeOffsets.forEach(o => {
+    makeTree(cx + o[0] + (Math.random() - 0.5) * 0.4,
+             cz + o[1] + (Math.random() - 0.5) * 0.4,
+             0.65 + Math.random() * 0.3);
+  });
+}
+buildDeforestation(8, -8, 8, 6);     // big patch on the central south plain
+buildDeforestation(3, 9.5, 12, 2.5); // long strip running along the south side of the road
+
+// Riverbank trees — small clusters along the meandering main river bends
+makeTreeCluster(8, 4.8, 4, 1.4, 0.45, 0.8);    // north of bend 1
+makeTreeCluster(5.5, -3.8, 4, 1.4, 0.45, 0.8); // south of bend 2
+makeTreeCluster(2.5, 4.8, 4, 1.4, 0.45, 0.8);  // north of bend 3
+makeTreeCluster(-1, -3.8, 4, 1.4, 0.45, 0.8);  // south of bend 4
+makeTreeCluster(-3.5, 4.6, 4, 1.4, 0.45, 0.8); // north of bend 5
+makeTreeCluster(-6.5, -3.8, 4, 1.4, 0.45, 0.8);// south of bend 6
+// Trees around the pond/channel network
+makeTreeCluster(15, 20, 5, 1.5, 0.5, 0.85);   // north of POND1
+makeTreeCluster(19, 14, 4, 1.3, 0.5, 0.85);   // south between ponds
+makeTreeCluster(26, 18, 4, 1.4, 0.5, 0.85);   // east of POND2
+makeTreeCluster(26, 13, 4, 1.3, 0.5, 0.85);   // south of FROM LAKES
 
 // Palm cluster along the beach (one row, narrow band along the coastline)
 for (let i = 0; i < 6; i++) {
@@ -651,14 +772,527 @@ gltfLoader.load('models/field_garden.glb', (gltf) => {
 }, undefined, (err) => console.warn('field_garden #1 load failed', err));
 
 
-// Morning Town — north plain, well clear of the river. Footprint spans
-// roughly z=6.5 to 17.5 while the river at this x sits at z~0.3.
-gltfLoader.load('models/morning_town/scene.gltf', (gltf) => {
-  console.log('town loaded');
-  placeModel(gltf, {
-    worldX: -7, worldZ: 12, targetSize: 11, yaw: -0.4, zUp: false,
+// Procedural village — replaces the Morning Town glTF
+function buildHouse(x, z, roofColor, scale = 1, yaw = 0) {
+  const g = new THREE.Group();
+  // Walls
+  const wallColors = [0xfff8e1, 0xefebe9, 0xfafafa, 0xfff3e0];
+  const wallColor = wallColors[Math.floor(Math.random() * wallColors.length)];
+  const walls = new THREE.Mesh(
+    new THREE.BoxGeometry(1.8, 1.3, 1.4),
+    new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.95 })
+  );
+  walls.position.y = 0.65;
+  walls.castShadow = true;
+  walls.receiveShadow = true;
+  g.add(walls);
+  // Pyramid roof (4-sided cone)
+  const roof = new THREE.Mesh(
+    new THREE.ConeGeometry(1.35, 0.9, 4),
+    new THREE.MeshStandardMaterial({ color: roofColor, roughness: 0.8 })
+  );
+  roof.position.y = 1.75;
+  roof.rotation.y = Math.PI / 4;
+  roof.castShadow = true;
+  g.add(roof);
+  // Door
+  const door = new THREE.Mesh(
+    new THREE.BoxGeometry(0.35, 0.6, 0.05),
+    new THREE.MeshStandardMaterial({ color: 0x4e342e })
+  );
+  door.position.set(0, 0.3, 0.72);
+  g.add(door);
+  // Windows
+  const winMat = new THREE.MeshStandardMaterial({
+    color: 0x4fc3f7, emissive: 0x0277bd, emissiveIntensity: 0.3,
+    metalness: 0.4, roughness: 0.2,
   });
-}, undefined, (err) => console.warn('town load failed', err));
+  [[-0.55, 0.7, 0.72], [0.55, 0.7, 0.72]].forEach(p => {
+    const win = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.35, 0.04), winMat);
+    win.position.set(p[0], p[1], p[2]);
+    g.add(win);
+  });
+  // Chimney
+  const chimney = new THREE.Mesh(
+    new THREE.BoxGeometry(0.18, 0.5, 0.18),
+    new THREE.MeshStandardMaterial({ color: 0x546e7a, roughness: 0.95 })
+  );
+  chimney.position.set(0.5, 1.85, 0.2);
+  chimney.castShadow = true;
+  g.add(chimney);
+  g.position.set(x, sampleTerrainY(x, z), z);
+  g.scale.setScalar(scale);
+  g.rotation.y = yaw;
+  scene.add(g);
+  return g;
+}
+
+function buildWaterTower(x, z) {
+  const g = new THREE.Group();
+  const legMat = new THREE.MeshStandardMaterial({
+    color: 0x546e7a, roughness: 0.6, metalness: 0.5,
+  });
+  // 4 legs splayed slightly outward
+  [[0.45, 0.45], [-0.45, 0.45], [0.45, -0.45], [-0.45, -0.45]].forEach(p => {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.0, 8), legMat);
+    leg.position.set(p[0], 1.0, p[1]);
+    // Tilt slightly inward toward top
+    const angle = Math.atan2(p[0], p[1]);
+    leg.rotation.z = Math.sin(angle) * 0.08;
+    leg.rotation.x = Math.cos(angle) * 0.08;
+    leg.castShadow = true;
+    g.add(leg);
+  });
+  // Tank
+  const tank = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.55, 0.55, 0.9, 16),
+    new THREE.MeshStandardMaterial({
+      color: 0xeceff1, roughness: 0.5, metalness: 0.4,
+    })
+  );
+  tank.position.y = 2.4;
+  tank.castShadow = true;
+  g.add(tank);
+  // Dome cap
+  const cap = new THREE.Mesh(
+    new THREE.SphereGeometry(0.55, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+    new THREE.MeshStandardMaterial({ color: 0x37474f, roughness: 0.7 })
+  );
+  cap.position.y = 2.85;
+  cap.castShadow = true;
+  g.add(cap);
+  g.position.set(x, sampleTerrainY(x, z), z);
+  scene.add(g);
+  return g;
+}
+
+// Village centered around (-7, 12) — replaces the morning_town glTF
+const _townCx = -7, _townCz = 12;
+const _houses = [
+  { dx: -2.2, dz: -1.5, color: 0xc62828, scale: 1.1, yaw:  0.2 },
+  { dx:  1.0, dz:  0.0, color: 0x1976d2, scale: 1.2, yaw: -0.3 },
+  { dx: -1.0, dz:  2.0, color: 0xf57c00, scale: 1.0, yaw:  0.5 },
+  { dx:  2.5, dz:  1.8, color: 0x388e3c, scale: 1.1, yaw:  0.1 },
+  { dx: -3.0, dz:  1.2, color: 0x7b1fa2, scale: 1.0, yaw: -0.1 },
+  { dx:  0.3, dz:  3.0, color: 0xff5722, scale: 1.1, yaw:  0.4 },
+];
+_houses.forEach(h => buildHouse(_townCx + h.dx, _townCz + h.dz, h.color, h.scale, h.yaw));
+buildWaterTower(_townCx + 3.5, _townCz + 3.5);
+
+// ---------- INDUSTRIAL AREA ----------
+function buildFactory(x, z, yaw = 0) {
+  const g = new THREE.Group();
+  // Main factory building
+  const main = new THREE.Mesh(
+    new THREE.BoxGeometry(3.6, 2.0, 2.6),
+    new THREE.MeshStandardMaterial({ color: 0xb0bec5, roughness: 0.85 })
+  );
+  main.position.y = 1.0; main.castShadow = true; main.receiveShadow = true;
+  g.add(main);
+  // Sawtooth roof - 3 small peaks
+  const roofMat = new THREE.MeshStandardMaterial({ color: 0x546e7a, roughness: 0.8 });
+  for (let i = 0; i < 3; i++) {
+    const peak = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.45, 2.6), roofMat);
+    peak.position.set(-1.2 + i * 1.2, 2.2, 0);
+    peak.rotation.z = (i % 2 === 0) ? 0.2 : -0.2;
+    peak.castShadow = true;
+    g.add(peak);
+  }
+  // Two smokestacks
+  const stackMat = new THREE.MeshStandardMaterial({ color: 0x424242, roughness: 0.7 });
+  const stripeMat = new THREE.MeshStandardMaterial({ color: 0xc62828 });
+  [-0.6, 0.6].forEach(dx => {
+    const stack = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 1.8, 12), stackMat);
+    stack.position.set(dx, 3.0, 0.7); stack.castShadow = true;
+    g.add(stack);
+    const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.23, 0.23, 0.16, 12), stripeMat);
+    stripe.position.set(dx, 3.7, 0.7); g.add(stripe);
+  });
+  // Window strip on the long wall (front)
+  const winMat = new THREE.MeshStandardMaterial({
+    color: 0xfff59d, emissive: 0xfff176, emissiveIntensity: 0.4,
+  });
+  for (let i = 0; i < 5; i++) {
+    const win = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.4, 0.05), winMat);
+    win.position.set(-1.4 + i * 0.7, 1.3, 1.32);
+    g.add(win);
+  }
+  g.position.set(x, sampleTerrainY(x, z), z);
+  g.rotation.y = yaw;
+  scene.add(g);
+  return g;
+}
+
+function buildStorageTank(x, z, color = 0xcfd8dc) {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.75, 0.75, 1.6, 18),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.45, metalness: 0.45 })
+  );
+  body.position.y = 0.8; body.castShadow = true; g.add(body);
+  const cap = new THREE.Mesh(
+    new THREE.SphereGeometry(0.75, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2),
+    new THREE.MeshStandardMaterial({ color: 0x78909c, roughness: 0.7 })
+  );
+  cap.position.y = 1.6; cap.castShadow = true; g.add(cap);
+  // A band stripe near base
+  const band = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.77, 0.77, 0.12, 18),
+    new THREE.MeshStandardMaterial({ color: 0xc62828 })
+  );
+  band.position.y = 0.25; g.add(band);
+  g.position.set(x, sampleTerrainY(x, z), z);
+  scene.add(g);
+  return g;
+}
+
+function buildWarehouse(x, z, yaw = 0) {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(2.8, 1.4, 1.8),
+    new THREE.MeshStandardMaterial({ color: 0xd7ccc8, roughness: 0.9 })
+  );
+  body.position.y = 0.7; body.castShadow = true; g.add(body);
+  // Curved metal roof (half-cylinder)
+  const roof = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.9, 0.9, 2.85, 12, 1, false, 0, Math.PI),
+    new THREE.MeshStandardMaterial({ color: 0x90a4ae, roughness: 0.5, metalness: 0.4 })
+  );
+  roof.rotation.z = Math.PI / 2;
+  roof.position.y = 1.4;
+  roof.scale.set(1, 1, 0.95);
+  roof.castShadow = true;
+  g.add(roof);
+  // Big garage-style door
+  const door = new THREE.Mesh(
+    new THREE.BoxGeometry(1.2, 1.0, 0.05),
+    new THREE.MeshStandardMaterial({ color: 0x37474f, roughness: 0.7 })
+  );
+  door.position.set(0, 0.5, 0.92); g.add(door);
+  g.position.set(x, sampleTerrainY(x, z), z);
+  g.rotation.y = yaw;
+  scene.add(g);
+  return g;
+}
+
+// Road builder: dark asphalt strip + yellow dashed center line.
+function buildRoad(fromX, fromZ, toX, toZ, width = 1.6) {
+  const dx = toX - fromX, dz = toZ - fromZ;
+  const length = Math.sqrt(dx * dx + dz * dz);
+  const angle = Math.atan2(dz, dx);
+  const midX = (fromX + toX) / 2, midZ = (fromZ + toZ) / 2;
+  const roadMat = new THREE.MeshStandardMaterial({ color: 0x37474f, roughness: 0.9 });
+  const road = new THREE.Mesh(new THREE.BoxGeometry(length, 0.06, width), roadMat);
+  road.position.set(midX, sampleTerrainY(midX, midZ) + 0.08, midZ);
+  road.rotation.y = -angle;
+  road.receiveShadow = true;
+  scene.add(road);
+  // Yellow dashed center line
+  const dashMat = new THREE.MeshStandardMaterial({
+    color: 0xfdd835, emissive: 0xfbc02d, emissiveIntensity: 0.3,
+  });
+  const dashes = Math.max(3, Math.floor(length / 1.5));
+  for (let i = 0; i < dashes; i++) {
+    const t = (i + 0.3) / dashes;
+    const x = fromX + dx * t, z = fromZ + dz * t;
+    const dash = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.04, 0.15), dashMat);
+    dash.position.set(x, sampleTerrainY(x, z) + 0.13, z);
+    dash.rotation.y = -angle;
+    scene.add(dash);
+  }
+  // Shoulders (lighter strip along edges)
+  const shoulderMat = new THREE.MeshStandardMaterial({ color: 0xa1887f, roughness: 1.0 });
+  [-1, 1].forEach(side => {
+    const shoulder = new THREE.Mesh(
+      new THREE.BoxGeometry(length, 0.05, 0.25), shoulderMat
+    );
+    const off = (width / 2 + 0.12) * side;
+    shoulder.position.set(
+      midX - Math.sin(angle) * off,
+      sampleTerrainY(midX, midZ) + 0.07,
+      midZ + Math.cos(angle) * off
+    );
+    shoulder.rotation.y = -angle;
+    scene.add(shoulder);
+  });
+}
+
+// Main road: village east edge → industrial complex west edge
+buildRoad(-4, 11, 12, 11);
+// Short connector: industrial → dam on river
+buildRoad(15, 8.5, 10, 1.5, 1.3);
+
+// ---------- BOATS (float in the ocean, gentle bob + drift) ----------
+const boatMeshes = [];
+function buildSailboat(x, z) {
+  const g = new THREE.Group();
+  // Hull (trapezoid-ish — wider top, narrower bottom)
+  const hullMat = new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 0.7 });
+  const hullTop = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.3, 0.7), hullMat);
+  hullTop.position.y = 0.45;
+  hullTop.castShadow = true;
+  g.add(hullTop);
+  const hullBot = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.3, 0.5), hullMat);
+  hullBot.position.y = 0.2;
+  hullBot.castShadow = true;
+  g.add(hullBot);
+  // Cabin / deck plate
+  const deck = new THREE.Mesh(
+    new THREE.BoxGeometry(0.6, 0.25, 0.5),
+    new THREE.MeshStandardMaterial({ color: 0xefebe9 })
+  );
+  deck.position.set(-0.2, 0.7, 0);
+  g.add(deck);
+  // Mast
+  const mast = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.05, 0.05, 2.2, 8),
+    new THREE.MeshStandardMaterial({ color: 0x5d4037 })
+  );
+  mast.position.set(0.1, 1.6, 0);
+  g.add(mast);
+  // Main sail (triangular plane)
+  const sailMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff, roughness: 0.9, side: THREE.DoubleSide,
+  });
+  const sailGeo = new THREE.BufferGeometry();
+  sailGeo.setAttribute('position', new THREE.Float32BufferAttribute([
+    0.1, 0.6, 0,    0.1, 2.6, 0,    1.2, 0.6, 0,
+  ], 3));
+  sailGeo.computeVertexNormals();
+  const sail = new THREE.Mesh(sailGeo, sailMat);
+  sail.castShadow = true;
+  g.add(sail);
+  // Jib (smaller front sail)
+  const jibGeo = new THREE.BufferGeometry();
+  jibGeo.setAttribute('position', new THREE.Float32BufferAttribute([
+    0.1, 0.6, 0,    0.1, 2.0, 0,    -0.9, 0.6, 0,
+  ], 3));
+  jibGeo.computeVertexNormals();
+  const jib = new THREE.Mesh(jibGeo, sailMat);
+  g.add(jib);
+  g.position.set(x, 0.22, z);
+  g.userData = {
+    baseX: x, baseZ: z,
+    bobPhase: Math.random() * Math.PI * 2,
+    yawPhase: Math.random() * Math.PI * 2,
+  };
+  scene.add(g);
+  boatMeshes.push(g);
+  return g;
+}
+
+function buildMotorboat(x, z) {
+  const g = new THREE.Group();
+  // Hull (red & white)
+  const hullMat = new THREE.MeshStandardMaterial({ color: 0xc62828, roughness: 0.6 });
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.3, 0.7), hullMat);
+  hull.position.y = 0.35;
+  hull.castShadow = true;
+  g.add(hull);
+  // White trim strip
+  const trim = new THREE.Mesh(
+    new THREE.BoxGeometry(1.85, 0.08, 0.72),
+    new THREE.MeshStandardMaterial({ color: 0xfafafa })
+  );
+  trim.position.y = 0.52;
+  g.add(trim);
+  // Windshield / cockpit
+  const cockpit = new THREE.Mesh(
+    new THREE.BoxGeometry(0.5, 0.25, 0.6),
+    new THREE.MeshStandardMaterial({
+      color: 0x4fc3f7, metalness: 0.5, roughness: 0.2,
+      emissive: 0x0277bd, emissiveIntensity: 0.2,
+    })
+  );
+  cockpit.position.set(0.1, 0.72, 0);
+  g.add(cockpit);
+  // Small outboard motor at back
+  const motor = new THREE.Mesh(
+    new THREE.BoxGeometry(0.18, 0.4, 0.18),
+    new THREE.MeshStandardMaterial({ color: 0x37474f })
+  );
+  motor.position.set(-0.95, 0.55, 0);
+  g.add(motor);
+  g.position.set(x, 0.22, z);
+  g.userData = {
+    baseX: x, baseZ: z,
+    bobPhase: Math.random() * Math.PI * 2,
+    yawPhase: Math.random() * Math.PI * 2,
+  };
+  scene.add(g);
+  boatMeshes.push(g);
+  return g;
+}
+
+buildSailboat(-25, 5);    // sailboat in the bay
+buildMotorboat(-26, -5);  // motor boat further out
+
+// ---------- LIGHTHOUSE (coastal landmark on the western shore) ----------
+function buildLighthouse(x, z) {
+  const g = new THREE.Group();
+  // Base
+  const base = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.9, 1.1, 0.6, 16),
+    new THREE.MeshStandardMaterial({ color: 0x607d8b, roughness: 0.9 })
+  );
+  base.position.y = 0.3; base.castShadow = true; g.add(base);
+  // Tower in red/white stripes (4 alternating cylinders)
+  const stripeColors = [0xfafafa, 0xc62828];
+  for (let i = 0; i < 4; i++) {
+    const stripe = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.55, 0.55, 0.9, 16),
+      new THREE.MeshStandardMaterial({
+        color: stripeColors[i % 2], roughness: 0.7,
+      })
+    );
+    stripe.position.y = 0.6 + 0.9 + i * 0.9 - 0.45;
+    stripe.castShadow = true;
+    g.add(stripe);
+  }
+  // Top cap (lantern room)
+  const lantern = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.45, 0.45, 0.45, 12),
+    new THREE.MeshStandardMaterial({
+      color: 0xffeb3b, emissive: 0xfff176, emissiveIntensity: 0.9,
+    })
+  );
+  lantern.position.y = 4.5;
+  g.add(lantern);
+  // Roof cone
+  const roof = new THREE.Mesh(
+    new THREE.ConeGeometry(0.55, 0.5, 12),
+    new THREE.MeshStandardMaterial({ color: 0xb71c1c, roughness: 0.8 })
+  );
+  roof.position.y = 5.0;
+  roof.castShadow = true;
+  g.add(roof);
+  // Strong point light to simulate the beacon
+  const beacon = new THREE.PointLight(0xfff59d, 1.2, 18);
+  beacon.position.y = 4.5;
+  g.add(beacon);
+  g.position.set(x, sampleTerrainY(x, z), z);
+  scene.add(g);
+  return g;
+}
+buildLighthouse(-9, 18);  // on the western coast strip near terrain north corner
+
+// ---------- HARBOUR ----------
+function buildHarbour(landX, waterX, z) {
+  const g = new THREE.Group();
+  const pierLength = Math.abs(waterX - landX);
+  const centerX = (landX + waterX) / 2;
+  // Deck (wide thin slab)
+  const deck = new THREE.Mesh(
+    new THREE.BoxGeometry(pierLength, 0.12, 1.8),
+    new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 0.9 })
+  );
+  deck.position.set(centerX, 0.36, z);
+  deck.castShadow = true;
+  deck.receiveShadow = true;
+  g.add(deck);
+  // Plank groove lines on top of deck
+  const plankMat = new THREE.MeshStandardMaterial({ color: 0x4e342e });
+  for (let i = 0; i < 9; i++) {
+    const plank = new THREE.Mesh(new THREE.BoxGeometry(pierLength, 0.13, 0.04), plankMat);
+    plank.position.set(centerX, 0.37, z - 0.8 + i * 0.2);
+    g.add(plank);
+  }
+  // Pilings (pairs along the length, extending into the water)
+  const pilingMat = new THREE.MeshStandardMaterial({ color: 0x3e2723, roughness: 1 });
+  const supportCount = Math.ceil(pierLength / 1.6);
+  for (let i = 0; i <= supportCount; i++) {
+    const t = i / supportCount;
+    const x = landX + (waterX - landX) * t;
+    [z - 0.75, z + 0.75].forEach(zPos => {
+      const p = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.13, 0.16, 2.0, 8), pilingMat
+      );
+      p.position.set(x, -0.65, zPos);
+      p.castShadow = true;
+      g.add(p);
+    });
+  }
+  // Side railing posts + top rails
+  const railMat = new THREE.MeshStandardMaterial({ color: 0x6d4c41 });
+  for (let i = 0; i <= supportCount; i++) {
+    const t = i / supportCount;
+    const x = landX + (waterX - landX) * t;
+    [z - 0.95, z + 0.95].forEach(zPos => {
+      const post = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.06, 0.06, 0.55, 6), railMat
+      );
+      post.position.set(x, 0.65, zPos);
+      g.add(post);
+    });
+  }
+  [z - 0.95, z + 0.95].forEach(zPos => {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(pierLength, 0.07, 0.07), railMat);
+    rail.position.set(centerX, 0.88, zPos);
+    g.add(rail);
+  });
+  // Cleats at the water end (where boats tie up)
+  const cleatMat = new THREE.MeshStandardMaterial({ color: 0x546e7a, roughness: 0.4, metalness: 0.6 });
+  [z - 0.6, z + 0.6].forEach(zPos => {
+    const cleat = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.4), cleatMat);
+    cleat.position.set(waterX, 0.5, zPos);
+    g.add(cleat);
+  });
+  scene.add(g);
+  return g;
+}
+
+function buildHarbourHut(x, z) {
+  const g = new THREE.Group();
+  const walls = new THREE.Mesh(
+    new THREE.BoxGeometry(1.9, 1.3, 1.6),
+    new THREE.MeshStandardMaterial({ color: 0xeceff1, roughness: 0.9 })
+  );
+  walls.position.y = 0.65; walls.castShadow = true; g.add(walls);
+  // Red pyramid roof
+  const roof = new THREE.Mesh(
+    new THREE.ConeGeometry(1.4, 0.75, 4),
+    new THREE.MeshStandardMaterial({ color: 0xc62828, roughness: 0.8 })
+  );
+  roof.position.y = 1.7; roof.rotation.y = Math.PI / 4;
+  roof.castShadow = true;
+  g.add(roof);
+  // Door + windows
+  const door = new THREE.Mesh(
+    new THREE.BoxGeometry(0.35, 0.65, 0.05),
+    new THREE.MeshStandardMaterial({ color: 0x4e342e })
+  );
+  door.position.set(0, 0.33, 0.82); g.add(door);
+  const winMat = new THREE.MeshStandardMaterial({
+    color: 0xffd54f, emissive: 0xfff176, emissiveIntensity: 0.5,
+  });
+  [[-0.6, 0.85, 0.82], [0.6, 0.85, 0.82]].forEach(p => {
+    const w = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.04), winMat);
+    w.position.set(p[0], p[1], p[2]); g.add(w);
+  });
+  // Small life preserver hanging on the wall (decoration)
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(0.18, 0.05, 6, 12),
+    new THREE.MeshStandardMaterial({ color: 0xff5722 })
+  );
+  ring.position.set(-0.95, 0.7, 0); ring.rotation.y = Math.PI / 2; g.add(ring);
+  g.position.set(x, sampleTerrainY(x, z), z);
+  scene.add(g);
+  return g;
+}
+
+// Harbour on the west coast. The terrain drops into the ocean basin near
+// x=-18, so the pier starts at the shoreline and extends into deeper water.
+buildHarbour(-17.5, -25, 0);
+buildHarbourHut(-15.8, 0);
+// Docked motorboat at the pier's water end
+buildMotorboat(-24, 1.2);
+
+// Industrial complex on the open north plain, between terrace, ponds, and windmill
+const _indCx = 15, _indCz = 10;
+buildFactory(_indCx, _indCz, 0.3);
+buildStorageTank(_indCx + 3.0, _indCz - 0.5, 0xeceff1);
+buildStorageTank(_indCx + 3.0, _indCz + 1.2, 0xb0bec5);
+buildWarehouse(_indCx - 3.0, _indCz + 0.5, -0.2);
 
 // Cow — placed on the open plain south of the river
 gltfLoader.load('models/cow_small/scene.gltf', (gltf) => {
@@ -729,27 +1363,86 @@ makeCloud(-2, 17, 8, 1.1);
 makeCloud(-12, 18, -5, 0.9);
 const rainCloud = makeCloud(14, 16, 4, 1.3); // primary rain cloud over mountain
 
-// ---------- RAIN PARTICLES ----------
-const RAIN_COUNT = 600;
+// ---------- RAIN (cartoon teardrop sprites) ----------
+// Each drop is a single point rendered with a teardrop canvas texture.
+const dropCanvas = document.createElement('canvas');
+dropCanvas.width = 64; dropCanvas.height = 96;
+{
+  const c = dropCanvas.getContext('2d');
+  c.clearRect(0, 0, 64, 96);
+  // Filled teardrop body
+  c.fillStyle = '#29b6f6';
+  c.beginPath();
+  c.moveTo(32, 6);
+  c.bezierCurveTo(60, 50, 52, 88, 32, 88);
+  c.bezierCurveTo(12, 88, 4, 50, 32, 6);
+  c.fill();
+  // Darker outline
+  c.strokeStyle = '#0277bd';
+  c.lineWidth = 3;
+  c.stroke();
+  // White highlight inside
+  c.fillStyle = 'rgba(255, 255, 255, 0.55)';
+  c.beginPath();
+  c.ellipse(24, 52, 4, 11, -0.2, 0, Math.PI * 2);
+  c.fill();
+}
+const dropTex = new THREE.CanvasTexture(dropCanvas);
+
+// TEARDROP SPRITE droplets — each rain drop is a single point rendered with
+// the cyan teardrop canvas texture. Slow fall so motion is clearly visible.
+const RAIN_COUNT = 140;
 const rainGeo = new THREE.BufferGeometry();
 const rainPositions = new Float32Array(RAIN_COUNT * 3);
 const rainVelocities = new Float32Array(RAIN_COUNT);
-for (let i = 0; i < RAIN_COUNT; i++) {
-  rainPositions[i * 3] = 14 + (Math.random() - 0.5) * 10;
-  rainPositions[i * 3 + 1] = Math.random() * 12 + 4;
-  rainPositions[i * 3 + 2] = 4 + (Math.random() - 0.5) * 8;
-  rainVelocities[i] = 0.15 + Math.random() * 0.15;
+const rainSpawn = { x0: 8, dx: 28, z0: 2, dz: 26 };
+function seedRainDrop(i, full = true) {
+  rainPositions[i * 3]     = rainSpawn.x0 + (Math.random() - 0.5) * rainSpawn.dx;
+  rainPositions[i * 3 + 1] = full ? Math.random() * 14 + 5 : 16 + Math.random() * 3;
+  rainPositions[i * 3 + 2] = rainSpawn.z0 + (Math.random() - 0.5) * rainSpawn.dz;
+  // Faster fall so motion is clearly visible
+  rainVelocities[i] = 0.10 + Math.random() * 0.08;
 }
+for (let i = 0; i < RAIN_COUNT; i++) seedRainDrop(i, true);
 rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
 const rainMat = new THREE.PointsMaterial({
-  color: 0x4fc3f7,
-  size: 0.25,
+  map: dropTex,
+  size: 1.4,
   transparent: true,
-  opacity: 0.85,
+  alphaTest: 0.05,
   depthWrite: false,
+  sizeAttenuation: true,
 });
 const rain = new THREE.Points(rainGeo, rainMat);
 scene.add(rain);
+
+// Splash markers — small expanding rings on the ground when drops land
+const SPLASH_COUNT = 40;
+const splashPool = [];
+const splashGeo = new THREE.RingGeometry(0.05, 0.18, 12);
+splashGeo.rotateX(-Math.PI / 2);
+for (let i = 0; i < SPLASH_COUNT; i++) {
+  const m = new THREE.Mesh(
+    splashGeo,
+    new THREE.MeshBasicMaterial({
+      color: 0xbbdefb, transparent: true, opacity: 0, depthWrite: false,
+    })
+  );
+  m.visible = false;
+  m.userData = { age: 0, life: 0 };
+  scene.add(m);
+  splashPool.push(m);
+}
+function spawnSplash(x, y, z) {
+  const s = splashPool.find(p => !p.visible);
+  if (!s) return;
+  s.position.set(x, y + 0.02, z);
+  s.scale.setScalar(1);
+  s.material.opacity = 0.9;
+  s.userData.age = 0;
+  s.userData.life = 0.35 + Math.random() * 0.15;
+  s.visible = true;
+}
 
 // ---------- EVAPORATION PARTICLES (over ocean rising up) ----------
 const EVAP_COUNT = 250;
@@ -828,17 +1521,18 @@ function buildPipe(from, to, color, radius = 0.18) {
   scene.add(mesh);
   return mesh;
 }
-// Water supply line: river point near (-5, 0.3, 0.5) up to town south edge (-6, 0.5, 7)
+// Water supply: from main river (z≈0.5 at x=-5.5) up to village south edge.
+// Village houses span roughly z=10.5 to 15.5, so end the pipe at z=10.5.
 buildPipe(
-  new THREE.Vector3(-5.5, 0.35, 0.6),
-  new THREE.Vector3(-6,   0.55, 7.0),
-  0x4fc3f7, 0.18
+  new THREE.Vector3(-5.5, 0.40, 0.5),
+  new THREE.Vector3(-6.5, 0.55, 10.5),
+  0x4fc3f7, 0.26
 );
-// Stormwater drain: town (-9, 0.5, 7) back to river at (-10, 0.3, -0.5)
+// Stormwater drain: from village (-9.5, 10.5) back to river at (-10.5, ~0.9).
 buildPipe(
-  new THREE.Vector3(-9,   0.55, 7.0),
-  new THREE.Vector3(-10,  0.35, -0.5),
-  0x546e7a, 0.22
+  new THREE.Vector3(-9.5,  0.55, 10.5),
+  new THREE.Vector3(-10.5, 0.40, 0.9),
+  0x546e7a, 0.30
 );
 
 // ---------- SUN RAYS (down arrows over ocean) ----------
@@ -1033,6 +1727,96 @@ function buildPond(x, z, radius = 2.0) {
 buildPond(17, 17, 2.4);  // POND1 — bigger flood-collection pond
 buildPond(22, 19, 1.7);  // POND2 — storage/recharge pond, near FROM LAKES
 
+// Water channels connecting POND1 ↔ POND2 ↔ FROM LAKES source.
+function buildChannel(fromX, fromZ, toX, toZ, width = 0.55) {
+  const dx = toX - fromX, dz = toZ - fromZ;
+  const length = Math.sqrt(dx * dx + dz * dz);
+  const angle = Math.atan2(dz, dx);
+  const midX = (fromX + toX) / 2, midZ = (fromZ + toZ) / 2;
+  // Sandy bank under the channel
+  const bank = new THREE.Mesh(
+    new THREE.BoxGeometry(length, 0.04, width + 0.35),
+    new THREE.MeshStandardMaterial({ color: 0xc9a663, roughness: 0.95 })
+  );
+  bank.position.set(midX, sampleTerrainY(midX, midZ) + 0.06, midZ);
+  bank.rotation.y = -angle;
+  bank.receiveShadow = true;
+  scene.add(bank);
+  // Water on top
+  const channel = new THREE.Mesh(
+    new THREE.BoxGeometry(length, 0.05, width),
+    new THREE.MeshStandardMaterial({
+      color: 0x29b6f6, emissive: 0x0277bd, emissiveIntensity: 0.4,
+      roughness: 0.25, metalness: 0,
+    })
+  );
+  channel.position.set(midX, sampleTerrainY(midX, midZ) + 0.09, midZ);
+  channel.rotation.y = -angle;
+  scene.add(channel);
+}
+
+// POND1 (17, 17, r=2.4)  →  POND2 (22, 19, r=1.7)
+buildChannel(19.0, 17.7, 20.5, 18.4, 0.55);
+// POND2 (22, 19, r=1.7) →  FROM LAKES small lake (25, 15, r=1.3)
+buildChannel(22.4, 17.5, 23.9, 15.8, 0.5);
+// POND1 (17, 17) →  Agroforestry terrace east edge (12.5, 17) — feeds irrigation
+buildChannel(14.7, 17.0, 12.7, 17.0, 0.45);
+
+// ---------- FISH (animated, swim in circles within water bodies) ----------
+const fishMeshes = [];
+function makeFish(centerX, centerZ, waterY, radius = 1.0, color = 0xff7043, scale = 1) {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({
+    color, roughness: 0.35, metalness: 0.2,
+    emissive: color, emissiveIntensity: 0.5,
+  });
+  // Body: stretched ellipsoid (sphere scaled)
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.22, 14, 10), mat);
+  body.scale.set(2.0, 1.0, 0.7);
+  g.add(body);
+  // Tail fin (triangular)
+  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.35, 4), mat);
+  tail.position.x = -0.55;
+  tail.rotation.z = Math.PI / 2;
+  tail.scale.set(1, 1, 0.35);
+  g.add(tail);
+  // Top dorsal fin
+  const fin = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.28, 3), mat);
+  fin.position.set(-0.05, 0.22, 0);
+  fin.scale.set(1.6, 1, 0.35);
+  g.add(fin);
+  // Eye dot for character
+  const eye = new THREE.Mesh(
+    new THREE.SphereGeometry(0.05, 8, 8),
+    new THREE.MeshStandardMaterial({ color: 0x000000 })
+  );
+  eye.position.set(0.32, 0.05, 0.16);
+  g.add(eye);
+  g.scale.setScalar(scale);
+  g.userData = {
+    cx: centerX, cz: centerZ, y: waterY, radius,
+    speed: 0.4 + Math.random() * 0.5,
+    phase: Math.random() * Math.PI * 2,
+  };
+  scene.add(g);
+  fishMeshes.push(g);
+  return g;
+}
+
+// POND1 — fish scale 1.5 so they're clearly visible from default cam
+const _pondY = 0.33;
+makeFish(17, 17, _pondY, 1.5, 0xff5722, 1.5);
+makeFish(17, 17, _pondY, 0.9, 0xff9800, 1.3);
+makeFish(17, 17, _pondY, 1.2, 0xffb74d, 1.4);
+// POND2 — 2 fish
+makeFish(22, 19, _pondY, 0.8, 0xef5350, 1.3);
+makeFish(22, 19, _pondY, 0.55, 0xff7043, 1.2);
+// Ocean fish — bigger, brighter for visibility
+makeFish(-22, 0,  0.20, 4.0, 0xffeb3b, 2.0);  // yellow
+makeFish(-25, 8,  0.20, 3.0, 0xff5722, 1.8);  // bright orange
+makeFish(-28, -8, 0.20, 4.5, 0xe91e63, 2.0);  // pink
+makeFish(-20, 12, 0.20, 2.5, 0xfdd835, 1.6);  // yellow-gold
+
 // ---------- AGROFORESTRY TERRACE ----------
 // Soil-conservation feature from the reference: stepped soil tiers with
 // trees + crops on top, tied ridges holding rainwater in the middle, and
@@ -1119,7 +1903,7 @@ function buildAgroforestryTerrace(cx, cz) {
     scene.add(stalk);
   }
 }
-buildAgroforestryTerrace(8, 15);  // west of POND1, next to the pond cluster
+buildAgroforestryTerrace(8, 17);  // shifted south to make room between terrace and industrial
 
 // ---------- IRRIGATION CHANNELS ----------
 // Small yellow/orange surface stripes near the field garden, like the
@@ -1358,8 +2142,8 @@ const labelDefs = [
   { id: 'ocean', text: 'Ocean', pos: new THREE.Vector3(-22, 1, -10) },
   { id: 'mountain', text: 'Mountain', pos: new THREE.Vector3(18, 8, 6) },
   { id: 'transp', text: 'Transpiration', pos: new THREE.Vector3(5, 9, 11) },
-  { id: 'supply', text: 'Water Supply', pos: new THREE.Vector3(-5.5, 2.0, 3.5) },
-  { id: 'storm', text: 'Stormwater', pos: new THREE.Vector3(-9.5, 2.0, 3.0) },
+  { id: 'supply', text: 'Water Supply', pos: new THREE.Vector3(-6,  2.0, 5.5) },
+  { id: 'storm',  text: 'Stormwater',  pos: new THREE.Vector3(-10, 2.0, 5.5) },
   { id: 'cloudForm', text: 'Cloud Formation', pos: new THREE.Vector3(0, 22, 4) },
   { id: 'fromSoil',  text: 'From Soil',       pos: new THREE.Vector3(12, 4.5, -16) },
   { id: 'fromStream',text: 'From Streams',    pos: new THREE.Vector3(22, 5.0,  3) },
@@ -1368,9 +2152,12 @@ const labelDefs = [
   { id: 'fromField', text: 'From Fields',     pos: new THREE.Vector3(0,  4.8, -10) },
   { id: 'pond1',     text: 'Pond 1',          pos: new THREE.Vector3(17, 1.5, 17) },
   { id: 'pond2',     text: 'Pond 2',          pos: new THREE.Vector3(22, 1.5, 19) },
-  { id: 'cropForest',text: 'Crop & Forestry', pos: new THREE.Vector3(8, 3.2, 12.6) },
-  { id: 'tiedRidges',text: 'Tied Ridges',     pos: new THREE.Vector3(8, 2.5, 15) },
-  { id: 'forage',    text: 'Forage Grasses',  pos: new THREE.Vector3(8, 2.0, 17.4) },
+  { id: 'cropForest',text: 'Crop & Forestry', pos: new THREE.Vector3(8, 3.2, 14.6) },
+  { id: 'tiedRidges',text: 'Tied Ridges',     pos: new THREE.Vector3(8, 2.5, 17) },
+  { id: 'industrial',text: 'Industrial Area', pos: new THREE.Vector3(15, 4.5, 10) },
+  { id: 'harbour',   text: 'Harbour',         pos: new THREE.Vector3(-18.5, 2.5, 0) },
+  { id: 'deforest',  text: 'Deforestation',   pos: new THREE.Vector3(3, 2.5, 9.5) },
+  { id: 'forage',    text: 'Forage Grasses',  pos: new THREE.Vector3(8, 2.0, 19.4) },
   { id: 'evapHeader',text: 'Evaporation',     pos: new THREE.Vector3(8, 10, -3) },
 ];
 const labelsContainer = document.getElementById('labels');
@@ -1397,18 +2184,361 @@ function updateLabels() {
 // ---------- UI CONTROLS ----------
 let labelsVisible = true;
 let rainOn = true;
-document.getElementById('toggleLabels').addEventListener('click', () => {
+const labelsButton = document.getElementById('toggleLabels');
+const rainButton = document.getElementById('toggleRain');
+function setToggleButton(button, isOn, label) {
+  button.textContent = `${label} ${isOn ? 'On' : 'Off'}`;
+  button.setAttribute('aria-pressed', String(isOn));
+}
+labelsButton.addEventListener('click', () => {
   labelsVisible = !labelsVisible;
   labelsContainer.style.display = labelsVisible ? 'block' : 'none';
+  setToggleButton(labelsButton, labelsVisible, 'Labels');
 });
-document.getElementById('toggleRain').addEventListener('click', () => {
+rainButton.addEventListener('click', () => {
   rainOn = !rainOn;
   rain.visible = rainOn;
+  setToggleButton(rainButton, rainOn, 'Rain');
 });
+// Smooth camera reset — short lerp instead of an instant snap
+let resetting = false;
+let resetTime = 0;
+const RESET_DURATION = 1.0;
+const resetFromCam = new THREE.Vector3();
+const resetFromTarget = new THREE.Vector3();
+const RESET_TARGET = new THREE.Vector3(0, 4, 0);
 document.getElementById('resetCam').addEventListener('click', () => {
-  camera.position.copy(DEFAULT_CAM);
-  controls.target.set(0, 4, 0);
+  resetFromCam.copy(camera.position);
+  resetFromTarget.copy(controls.target);
+  resetTime = 0;
+  resetting = true;
 });
+function updateCameraReset(dt) {
+  if (!resetting) return;
+  resetTime = Math.min(RESET_DURATION, resetTime + dt);
+  const k = resetTime / RESET_DURATION;
+  const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+  camera.position.lerpVectors(resetFromCam, DEFAULT_CAM, e);
+  controls.target.lerpVectors(resetFromTarget, RESET_TARGET, e);
+  if (resetTime >= RESET_DURATION) resetting = false;
+}
+
+// ---------- TOUR ----------
+// 8-stop narrated camera tour through the water cycle.
+const tourStops = [
+  {
+    title: 'The Water Cycle',
+    text: 'Welcome — this scene shows water moving between ocean, atmosphere and land. We\'ll follow a drop through each stage of the cycle.',
+    cam: new THREE.Vector3(38, 28, 42),
+    target: new THREE.Vector3(0, 4, 0),
+    labels: [], // null = no dimming on overview
+  },
+  {
+    title: '1. Ocean & Evaporation',
+    text: 'About 97% of Earth\'s water sits in the oceans. The sun heats the surface, and water rises as invisible vapor — the orange arrows mark evaporation from soil, streams, fields, and the sea.',
+    cam: new THREE.Vector3(-5, 18, 25),
+    target: new THREE.Vector3(-22, 8, 0),
+    labels: ['ocean', 'evap', 'evapHeader', 'fromSoil', 'fromStream', 'fromVeg', 'fromLake', 'fromField'],
+  },
+  {
+    title: '2. Cloud Formation',
+    text: 'High in the atmosphere the vapor cools and condenses into tiny water droplets that cluster as clouds — when enough collect, they become heavy enough to fall.',
+    cam: new THREE.Vector3(15, 24, 30),
+    target: new THREE.Vector3(8, 18, 0),
+    labels: ['cloudForm', 'cond'],
+  },
+  {
+    title: '3. Precipitation',
+    text: 'Water returns to the surface as rain, snow, or hail. Here the rain falls over the mountain — the highest catchment in the watershed.',
+    cam: new THREE.Vector3(28, 18, 30),
+    target: new THREE.Vector3(15, 6, 4),
+    labels: ['precip', 'mountain'],
+  },
+  {
+    title: '4. Surface Runoff',
+    text: 'Water that doesn\'t soak in flows downhill, gathering into streams and rivers. The meandering river carries it across the plain back toward the ocean.',
+    cam: new THREE.Vector3(20, 14, 35),
+    target: new THREE.Vector3(0, 1, 0),
+    labels: ['runoff'],
+  },
+  {
+    title: '5. Infiltration & Percolation',
+    text: 'Some water soaks into the ground. (A) Infiltration enters the soil, (B) Percolation moves deeper, (C) Groundwater flows slowly through the saturated rock — feeding springs and wells.',
+    cam: new THREE.Vector3(15, 10, 38),
+    target: new THREE.Vector3(0, -2, 18),
+    labels: ['infil'],
+  },
+  {
+    title: '6. Transpiration & Deforestation',
+    text: 'Plants pull water up from their roots and release it as vapor through their leaves. Forests are huge contributors to atmospheric moisture — but deforestation breaks this loop.',
+    cam: new THREE.Vector3(30, 14, 25),
+    target: new THREE.Vector3(8, 4, -5),
+    labels: ['transp', 'deforest'],
+  },
+  {
+    title: '7. Nature-Based Solutions',
+    text: 'Ponds capture floodwater, tied-ridges hold rainfall in place, and agroforestry mixes crops with trees — all keep water on the land longer and recharge groundwater.',
+    cam: new THREE.Vector3(20, 14, 35),
+    target: new THREE.Vector3(13, 2, 16),
+    labels: ['pond1', 'pond2', 'tiedRidges', 'cropForest', 'forage'],
+  },
+  {
+    title: '8. Human Use',
+    text: 'People intercept the cycle: water supply pipes draw from the river, stormwater drains carry runoff back, the harbour ties commerce to the sea, and industries draw and discharge.',
+    cam: new THREE.Vector3(-10, 16, 30),
+    target: new THREE.Vector3(-3, 4, 8),
+    labels: ['supply', 'storm', 'harbour', 'industrial'],
+  },
+  {
+    title: '9. Back to the Ocean',
+    text: 'The river empties into the ocean — fish, boats, the harbour all depend on it. Evaporation begins again, and the cycle continues endlessly.',
+    cam: new THREE.Vector3(-30, 14, 25),
+    target: new THREE.Vector3(-22, 2, 0),
+    labels: ['ocean', 'harbour'],
+  },
+];
+
+let tourIndex = 0;
+let tourPlaying = false;
+let tourTransition = 0;            // seconds into the current move
+const TOUR_MOVE_DURATION = 2.5;
+const TOUR_DWELL = 6.0;
+let tourDwell = 0;
+const tourFromCam = new THREE.Vector3();
+const tourFromTarget = new THREE.Vector3();
+
+const tourPanel = document.getElementById('tour-panel');
+const tourStartBtn = document.getElementById('tour-start');
+const tourCloseBtn = document.getElementById('tour-close');
+const tourPrevBtn = document.getElementById('tour-prev');
+const tourPlayBtn = document.getElementById('tour-play');
+const tourNextBtn = document.getElementById('tour-next');
+const tourVoiceBtn = document.getElementById('tour-voice');
+const tourTitle = document.getElementById('tour-title');
+const tourText = document.getElementById('tour-text');
+const tourStep = document.getElementById('tour-step');
+
+// Voice narration via the Web Speech API
+const speechAvailable = typeof window !== 'undefined' && 'speechSynthesis' in window;
+let voiceEnabled = speechAvailable;
+let preferredVoice = null;
+if (speechAvailable) {
+  const pickVoice = () => {
+    const voices = window.speechSynthesis.getVoices();
+    if (!voices.length) return;
+    preferredVoice =
+      voices.find(v => v.lang.startsWith('en') && /female|samantha|google us/i.test(v.name)) ||
+      voices.find(v => v.lang.startsWith('en-US')) ||
+      voices.find(v => v.lang.startsWith('en')) ||
+      voices[0];
+  };
+  pickVoice();
+  window.speechSynthesis.onvoiceschanged = pickVoice;
+}
+function speakStop() {
+  if (!voiceEnabled || !speechAvailable) return;
+  window.speechSynthesis.cancel();
+  const s = tourStops[tourIndex];
+  const utter = new SpeechSynthesisUtterance(`${s.title}. ${s.text}`);
+  utter.rate = 0.95;
+  utter.pitch = 1.0;
+  utter.volume = 0.95;
+  if (preferredVoice) utter.voice = preferredVoice;
+  window.speechSynthesis.speak(utter);
+}
+function stopSpeech() {
+  if (speechAvailable) window.speechSynthesis.cancel();
+}
+
+function setTourStop(i, animate = true) {
+  tourIndex = Math.max(0, Math.min(tourStops.length - 1, i));
+  const s = tourStops[tourIndex];
+  tourTitle.textContent = s.title;
+  tourText.textContent = s.text;
+  tourStep.textContent = `${tourIndex + 1} / ${tourStops.length}`;
+  tourPrevBtn.disabled = tourIndex === 0;
+  // On the final stop, repurpose Next as a "Replay" button instead of disabling it.
+  if (tourIndex === tourStops.length - 1) {
+    tourNextBtn.disabled = false;
+    tourNextBtn.textContent = 'Replay ↺';
+  } else {
+    tourNextBtn.disabled = false;
+    tourNextBtn.textContent = 'Next';
+  }
+  // Highlight relevant labels, dim everything else (skip when labels array is empty)
+  const highlight = new Set(s.labels || []);
+  labelDefs.forEach(def => {
+    if (highlight.size === 0) {
+      def.el.classList.remove('tour-dimmed', 'tour-highlighted');
+    } else if (highlight.has(def.id)) {
+      def.el.classList.add('tour-highlighted');
+      def.el.classList.remove('tour-dimmed');
+    } else {
+      def.el.classList.add('tour-dimmed');
+      def.el.classList.remove('tour-highlighted');
+    }
+  });
+  if (animate) {
+    tourFromCam.copy(camera.position);
+    tourFromTarget.copy(controls.target);
+    tourTransition = 0;
+    tourDwell = 0;
+  } else {
+    camera.position.copy(s.cam);
+    controls.target.copy(s.target);
+    tourTransition = TOUR_MOVE_DURATION;
+  }
+  speakStop();
+}
+
+function openTour() {
+  tourPanel.classList.remove('tour-hidden');
+  tourStartBtn.classList.add('tour-hidden');
+  setTourStop(0, true);
+}
+
+function closeTour() {
+  tourPanel.classList.add('tour-hidden');
+  tourStartBtn.classList.remove('tour-hidden');
+  tourPlaying = false;
+  tourPlayBtn.textContent = 'Play';
+  tourPlayBtn.setAttribute('aria-pressed', 'false');
+  // Clear any tour highlighting
+  labelDefs.forEach(def => def.el.classList.remove('tour-dimmed', 'tour-highlighted'));
+  stopSpeech();
+}
+
+function nextStop() {
+  if (tourIndex < tourStops.length - 1) {
+    setTourStop(tourIndex + 1, true);
+  } else {
+    // On the last stop, Next acts as Replay — loop back to the overview
+    setTourStop(0, true);
+  }
+}
+function prevStop() {
+  if (tourIndex > 0) setTourStop(tourIndex - 1, true);
+}
+
+tourStartBtn.addEventListener('click', openTour);
+tourCloseBtn.addEventListener('click', closeTour);
+tourPrevBtn.addEventListener('click', prevStop);
+tourNextBtn.addEventListener('click', nextStop);
+tourPlayBtn.addEventListener('click', () => {
+  tourPlaying = !tourPlaying;
+  tourPlayBtn.textContent = tourPlaying ? 'Pause' : 'Play';
+  tourPlayBtn.setAttribute('aria-pressed', String(tourPlaying));
+});
+if (!speechAvailable) {
+  tourVoiceBtn.style.display = 'none';
+} else {
+  tourVoiceBtn.addEventListener('click', () => {
+    voiceEnabled = !voiceEnabled;
+    tourVoiceBtn.textContent = voiceEnabled ? 'Voice On' : 'Voice Off';
+    tourVoiceBtn.setAttribute('aria-pressed', String(voiceEnabled));
+    tourVoiceBtn.classList.toggle('voice-off', !voiceEnabled);
+    if (!voiceEnabled) stopSpeech();
+    else speakStop();
+  });
+}
+
+// ---------- KEYBOARD SHORTCUTS ----------
+window.addEventListener('keydown', (e) => {
+  const tourOpen = !tourPanel.classList.contains('tour-hidden');
+  if (e.key === 'Escape') {
+    if (tourOpen) { closeTour(); e.preventDefault(); }
+    return;
+  }
+  if (!tourOpen) {
+    if (e.key === 't' || e.key === 'T') { openTour(); e.preventDefault(); }
+    return;
+  }
+  if (e.key === 'ArrowRight') { nextStop(); e.preventDefault(); }
+  else if (e.key === 'ArrowLeft') { prevStop(); e.preventDefault(); }
+  else if (e.key === ' ') {
+    tourPlaying = !tourPlaying;
+    tourPlayBtn.textContent = tourPlaying ? 'Pause' : 'Play';
+    tourPlayBtn.setAttribute('aria-pressed', String(tourPlaying));
+    e.preventDefault();
+  }
+});
+
+// ---------- WELCOME OVERLAY ----------
+const welcome = document.getElementById('welcome');
+const welcomeClose = document.getElementById('welcome-close');
+const welcomeTour = document.getElementById('welcome-tour');
+// Only show on first visit this session
+if (sessionStorage.getItem('seenWelcome')) {
+  welcome.classList.add('welcome-hidden');
+} else {
+  sessionStorage.setItem('seenWelcome', '1');
+}
+welcomeClose.addEventListener('click', () => welcome.classList.add('welcome-hidden'));
+welcomeTour.addEventListener('click', () => {
+  welcome.classList.add('welcome-hidden');
+  openTour();
+});
+welcome.addEventListener('click', (e) => {
+  if (e.target === welcome) welcome.classList.add('welcome-hidden');
+});
+
+// ---------- TAB-VISIBILITY HANDLING ----------
+// Pause narration when the user switches away (and resume on Return).
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    stopSpeech();
+  } else if (voiceEnabled && !tourPanel.classList.contains('tour-hidden')) {
+    speakStop();
+  }
+});
+
+// ---------- LOADING INDICATOR ----------
+const loader = document.getElementById('loader');
+window.addEventListener('load', () => {
+  setTimeout(() => loader.classList.add('loader-hidden'), 250);
+});
+setTimeout(() => loader.classList.add('loader-hidden'), 6000);
+
+// ---------- COLLAPSIBLE SIDE PANEL ----------
+const uiPanel = document.getElementById('ui');
+const uiCollapseBtn = document.getElementById('ui-collapse');
+uiCollapseBtn.addEventListener('click', () => {
+  const collapsed = uiPanel.classList.toggle('ui-collapsed');
+  uiCollapseBtn.textContent = collapsed ? '+' : '-';
+  uiCollapseBtn.title = collapsed ? 'Expand panel' : 'Collapse panel';
+  uiCollapseBtn.setAttribute('aria-label', collapsed ? 'Expand legend panel' : 'Collapse legend panel');
+  uiCollapseBtn.setAttribute('aria-expanded', String(!collapsed));
+});
+
+function updateTour(dt) {
+  if (tourPanel.classList.contains('tour-hidden')) {
+    controls.enabled = !resetting;
+    return;
+  }
+  // Lock orbit controls during the camera flight so a stray drag can't
+  // hijack the transition; re-enable once we're at the destination.
+  controls.enabled = tourTransition >= TOUR_MOVE_DURATION;
+  // Easing during the move
+  if (tourTransition < TOUR_MOVE_DURATION) {
+    tourTransition = Math.min(TOUR_MOVE_DURATION, tourTransition + dt);
+    const k = tourTransition / TOUR_MOVE_DURATION;
+    const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2; // easeInOutQuad
+    const s = tourStops[tourIndex];
+    camera.position.lerpVectors(tourFromCam, s.cam, e);
+    controls.target.lerpVectors(tourFromTarget, s.target, e);
+  } else if (tourPlaying) {
+    tourDwell += dt;
+    if (tourDwell >= TOUR_DWELL) {
+      if (tourIndex < tourStops.length - 1) {
+        setTourStop(tourIndex + 1, true);
+      } else {
+        tourPlaying = false;
+        tourPlayBtn.textContent = 'Play';
+        tourPlayBtn.setAttribute('aria-pressed', 'false');
+      }
+    }
+  }
+}
 
 // ---------- RESIZE ----------
 window.addEventListener('resize', () => {
@@ -1421,8 +2551,8 @@ window.addEventListener('resize', () => {
 const clock = new THREE.Clock();
 
 function animate() {
-  const t = clock.getElapsedTime();
   const dt = clock.getDelta();
+  const t = clock.elapsedTime;
 
   // Drift clouds
   clouds.forEach(c => {
@@ -1430,18 +2560,29 @@ function animate() {
     if (c.position.x > 30) c.position.x = -30;
   });
 
-  // Rain falling
+  // Rain falling — Points (1 vertex per teardrop)
   if (rainOn) {
     const rp = rainGeo.attributes.position.array;
     for (let i = 0; i < RAIN_COUNT; i++) {
       rp[i * 3 + 1] -= rainVelocities[i] * 60 * dt;
-      if (rp[i * 3 + 1] < sampleTerrainY(rp[i * 3], rp[i * 3 + 2]) + 0.2) {
-        rp[i * 3 + 1] = 14 + Math.random() * 4;
-        rp[i * 3] = 14 + (Math.random() - 0.5) * 10;
-        rp[i * 3 + 2] = 4 + (Math.random() - 0.5) * 8;
+      const groundY = sampleTerrainY(rp[i * 3], rp[i * 3 + 2]) + 0.2;
+      if (rp[i * 3 + 1] < groundY) {
+        if (Math.random() < 0.3) spawnSplash(rp[i * 3], groundY, rp[i * 3 + 2]);
+        seedRainDrop(i, false);
       }
     }
     rainGeo.attributes.position.needsUpdate = true;
+  }
+
+  // Update splash rings — grow + fade
+  for (let i = 0; i < splashPool.length; i++) {
+    const s = splashPool[i];
+    if (!s.visible) continue;
+    s.userData.age += dt;
+    const k = s.userData.age / s.userData.life;
+    if (k >= 1) { s.visible = false; continue; }
+    s.scale.setScalar(1 + k * 4);
+    s.material.opacity = 0.9 * (1 - k);
   }
 
   // Evaporation rising and swirling toward cloud
@@ -1480,6 +2621,28 @@ function animate() {
   // Spin windmill blades
   windmillBlades.forEach(h => { h.rotation.z = t * 1.2; });
 
+  // Gentle bob + yaw sway for boats
+  boatMeshes.forEach(b => {
+    const ud = b.userData;
+    b.position.y = 0.22 + Math.sin(t * 1.2 + ud.bobPhase) * 0.06;
+    b.rotation.z = Math.sin(t * 1.0 + ud.bobPhase) * 0.05;
+    b.rotation.y = Math.sin(t * 0.4 + ud.yawPhase) * 0.08;
+    // Slow drift in a small circle
+    b.position.x = ud.baseX + Math.cos(t * 0.15 + ud.yawPhase) * 0.5;
+    b.position.z = ud.baseZ + Math.sin(t * 0.15 + ud.yawPhase) * 0.5;
+  });
+
+  // Swim fish in circles within their water bodies
+  fishMeshes.forEach(f => {
+    const ud = f.userData;
+    const angle = t * ud.speed + ud.phase;
+    f.position.x = ud.cx + Math.cos(angle) * ud.radius;
+    f.position.z = ud.cz + Math.sin(angle) * ud.radius;
+    f.position.y = ud.y;
+    // Face direction of travel (tangent to the circle, +X axis of body model)
+    f.rotation.y = -angle - Math.PI / 2;
+  });
+
   // Scroll river water texture (downstream flow) — fast enough to read
   // as moving water, not so fast it looks like a screensaver.
   riverNet.waterTex.offset.y -= dt * 0.9;
@@ -1513,6 +2676,12 @@ function animate() {
   op.needsUpdate = true;
   oceanGeo.computeVertexNormals();
 
+  updateTour(dt);
+  updateCameraReset(dt);
+  // Auto-rotate when nothing's happening and the user has been idle
+  const tourOpen = !tourPanel.classList.contains('tour-hidden');
+  const idle = performance.now() - lastInteract > IDLE_MS;
+  controls.autoRotate = idle && !tourOpen && !resetting && controls.enabled;
   controls.update();
   updateLabels();
   renderer.render(scene, camera);

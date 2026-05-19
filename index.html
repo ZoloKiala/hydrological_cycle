@@ -17,9 +17,40 @@
 <body>
   <div id="app"></div>
 
+  <div id="loader" aria-hidden="true">
+    <div class="loader-spinner"></div>
+    <p>Loading scene...</p>
+  </div>
+
+  <div id="welcome" aria-hidden="false">
+    <div class="welcome-card">
+      <h2>Welcome</h2>
+      <p>Explore an interactive 3D water cycle: mountains, rivers, ocean, soils, and the people and places shaped by water.</p>
+      <div class="welcome-actions">
+        <button id="welcome-tour">Start guided tour</button>
+        <button id="welcome-close">Explore freely</button>
+      </div>
+    </div>
+  </div>
+
+  <header id="brand-bar">
+    <img id="iwmi-logo"
+         src="https://www.iwmi.org/wp-content/uploads/2020/02/iwmi-logo-full-trans-white-43h.png"
+         alt="IWMI"
+         onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'logo-fallback',textContent:'IWMI'}))" />
+    <div class="brand-text">
+      <h1>Interactive Water Cycle Explorer</h1>
+      <p>Water and Soil Accelerator · International Water Management Institute</p>
+    </div>
+  </header>
+
   <div id="ui">
-    <h1>The Water Cycle</h1>
-    <p class="subtitle">Interactive 3D Visualization</p>
+    <div class="ui-header">
+      <h1>Legend</h1>
+      <button id="ui-collapse" title="Collapse panel" aria-label="Collapse legend panel" aria-expanded="true">-</button>
+    </div>
+    <div id="ui-body">
+    <p class="subtitle">Drag to rotate · Scroll to zoom · Right-click to pan</p>
     <div class="legend">
       <div class="legend-item"><span class="dot" style="background:#4fc3f7"></span>Precipitation</div>
       <div class="legend-item"><span class="dot" style="background:#ffd54f"></span>Evaporation</div>
@@ -32,20 +63,41 @@
     </div>
     <div class="abc-legend">
       <p class="abc-title">Subsurface Flow</p>
-      <p class="abc-row"><span class="abc-letter">A</span>Infiltration — water soaks into soil</p>
-      <p class="abc-row"><span class="abc-letter">B</span>Percolation — water moves down through soil</p>
-      <p class="abc-row"><span class="abc-letter">C</span>Groundwater Flow — flow in saturated rock</p>
+      <p class="abc-row"><span class="abc-letter">A</span>Infiltration - water soaks into soil</p>
+      <p class="abc-row"><span class="abc-letter">B</span>Percolation - water moves down through soil</p>
+      <p class="abc-row"><span class="abc-letter">C</span>Groundwater Flow - flow in saturated rock</p>
     </div>
     <div class="controls">
-      <button id="toggleLabels">Toggle Labels</button>
-      <button id="toggleRain">Toggle Rain</button>
+      <button id="toggleLabels" aria-pressed="true">Labels On</button>
+      <button id="toggleRain" aria-pressed="true">Rain On</button>
       <button id="resetCam">Reset Camera</button>
     </div>
-    <p class="hint">Drag to rotate · Scroll to zoom · Right-click to pan</p>
-    <p class="credits">3D assets: <a href="https://sketchfab.com/3d-models/cow-99d333e3b4e4470a8d7d38436489c001" target="_blank" rel="noopener">Cow</a> by Josué Boisvert (CC-BY-4.0) · <a href="https://sketchfab.com/3d-models/morning-town-a8570ff99a9f408ab188bc4f8b94bf1d" target="_blank" rel="noopener">Morning Town</a> by nicolekeane (CC-BY-NC-SA-4.0) · field_garden via ZoloKiala/hydrological_cycle</p>
+    <p class="hint">Tip: press <kbd>T</kbd> to start the tour, <kbd>Left</kbd>/<kbd>Right</kbd> to navigate, <kbd>Space</kbd> to play or pause</p>
+    <p class="contact">Contact: <a href="mailto:z.kiala@cgiar.org">z.kiala@cgiar.org</a></p>
+    <p class="copyright">© 2026 Z. Kiala · IWMI / Water and Soil Accelerator. All rights reserved.</p>
+    <p class="credits">3D assets: <a href="https://sketchfab.com/3d-models/cow-99d333e3b4e4470a8d7d38436489c001" target="_blank" rel="noopener">Cow</a> by Josué Boisvert (CC-BY-4.0) · field_garden via ZoloKiala/hydrological_cycle</p>
+    </div>
   </div>
 
   <div id="labels"></div>
+
+  <div id="tour-panel" class="tour-hidden">
+    <div class="tour-header">
+      <span id="tour-step">1 / 10</span>
+      <div class="tour-header-actions">
+        <button id="tour-voice" title="Toggle narration" aria-label="Toggle narration" aria-pressed="true">Voice On</button>
+        <button id="tour-close" title="Close tour" aria-label="Close tour">x</button>
+      </div>
+    </div>
+    <h3 id="tour-title">Welcome</h3>
+    <p id="tour-text"></p>
+    <div class="tour-buttons">
+      <button id="tour-prev">Prev</button>
+      <button id="tour-play" aria-pressed="false">Play</button>
+      <button id="tour-next">Next</button>
+    </div>
+  </div>
+  <button id="tour-start">Start Tour</button>
 
   <script type="module" src="main.js"></script>
 </body>
