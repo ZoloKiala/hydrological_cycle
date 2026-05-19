@@ -671,7 +671,10 @@ function makeMountainSlopeTrees() {
 }
 makeMountainSlopeTrees();
 // ---------- DEFORESTATION PATCH ----------
-function buildDeforestation(cx, cz, width = 8, depth = 6, addSurvivingTrees = true) {
+function buildDeforestation(cx, cz, width = 8, depth = 6,
+                            addSurvivingTrees = true,
+                            addStumpsAndLogs = true,
+                            carveGullies = false) {
   const yT = sampleTerrainY(cx, cz);
   // Scale all sub-counts down for smaller patches
   const scale = (width * depth) / 48;  // 1.0 for the default 8×6
@@ -685,21 +688,25 @@ function buildDeforestation(cx, cz, width = 8, depth = 6, addSurvivingTrees = tr
   const dirtGeo = new THREE.PlaneGeometry(width, depth, segX, segZ);
   dirtGeo.rotateX(-Math.PI / 2);
 
-  // Define gully cross-sections (local x, z relative to patch center)
-  const gullies = [
-    { x: 0,            z: 0,          len: depth * 0.85, w: 0.55, depth: 0.32 }, // big central
-  ];
-  const sideCount = Math.max(2, Math.floor(width / 1.2));
-  for (let i = 0; i < sideCount; i++) {
-    const gx = -width / 2 + 0.5 + i * ((width - 1) / Math.max(1, sideCount - 1));
-    if (Math.abs(gx) < 0.7) continue;
-    gullies.push({
-      x: gx,
-      z: (Math.random() - 0.5) * 0.4,
-      len: depth * (0.55 + Math.random() * 0.25),
-      w: 0.18 + Math.random() * 0.08,
-      depth: 0.13 + Math.random() * 0.05,
-    });
+  // Define gully cross-sections only when carving — pure deforestation
+  // patches stay flat (no erosion gullies; those belong to the erosion demo).
+  const gullies = [];
+  if (carveGullies) {
+    gullies.push(
+      { x: 0, z: 0, len: depth * 0.85, w: 0.55, depth: 0.32 } // big central
+    );
+    const sideCount = Math.max(2, Math.floor(width / 1.2));
+    for (let i = 0; i < sideCount; i++) {
+      const gx = -width / 2 + 0.5 + i * ((width - 1) / Math.max(1, sideCount - 1));
+      if (Math.abs(gx) < 0.7) continue;
+      gullies.push({
+        x: gx,
+        z: (Math.random() - 0.5) * 0.4,
+        len: depth * (0.55 + Math.random() * 0.25),
+        w: 0.18 + Math.random() * 0.08,
+        depth: 0.13 + Math.random() * 0.05,
+      });
+    }
   }
 
   const pos = dirtGeo.attributes.position;
@@ -766,44 +773,47 @@ function buildDeforestation(cx, cz, width = 8, depth = 6, addSurvivingTrees = tr
     );
     scene.add(patch);
   }
-  // Tree STUMPS
-  const stumpMat = new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 1 });
-  const cutMat = new THREE.MeshStandardMaterial({ color: 0xc9a663, roughness: 0.85 });
-  const stumpCount = Math.max(5, Math.floor(14 * scale));
-  for (let i = 0; i < stumpCount; i++) {
-    const sx = cx + (Math.random() - 0.5) * (width - 1);
-    const sz = cz + (Math.random() - 0.5) * (depth - 1);
-    const r = 0.18 + Math.random() * 0.10;
-    const h = 0.4 + Math.random() * 0.20;
-    const stump = new THREE.Mesh(
-      new THREE.CylinderGeometry(r * 0.85, r, h, 10), stumpMat
-    );
-    stump.position.set(sx, yT + h / 2 + 0.04, sz);
-    stump.castShadow = true;
-    scene.add(stump);
-    const cut = new THREE.Mesh(
-      new THREE.CylinderGeometry(r * 0.82, r * 0.82, 0.04, 10), cutMat
-    );
-    cut.position.set(sx, yT + h + 0.04, sz);
-    scene.add(cut);
-  }
-  // FALLEN LOGS
-  const logMat = new THREE.MeshStandardMaterial({ color: 0x4e342e, roughness: 1 });
-  const logCount = Math.max(2, Math.floor(5 * scale));
-  for (let i = 0; i < logCount; i++) {
-    const logLen = Math.min(width * 0.35, 1.8 + Math.random() * 0.8);
-    const log = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.22, 0.22, logLen, 10), logMat
-    );
-    log.position.set(
-      cx + (Math.random() - 0.5) * (width - 1.5),
-      yT + 0.28,
-      cz + (Math.random() - 0.5) * (depth - 1.5)
-    );
-    log.rotation.z = Math.PI / 2;
-    log.rotation.y = Math.random() * Math.PI;
-    log.castShadow = true;
-    scene.add(log);
+  // Stumps + fallen logs are the visual markers of DEFORESTATION (cleared
+  // trees). Skipped when addStumpsAndLogs=false so a pure erosion strip
+  // stays free of cut-tree debris.
+  if (addStumpsAndLogs) {
+    const stumpMat = new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 1 });
+    const cutMat = new THREE.MeshStandardMaterial({ color: 0xc9a663, roughness: 0.85 });
+    const stumpCount = Math.max(5, Math.floor(14 * scale));
+    for (let i = 0; i < stumpCount; i++) {
+      const sx = cx + (Math.random() - 0.5) * (width - 1);
+      const sz = cz + (Math.random() - 0.5) * (depth - 1);
+      const r = 0.18 + Math.random() * 0.10;
+      const h = 0.4 + Math.random() * 0.20;
+      const stump = new THREE.Mesh(
+        new THREE.CylinderGeometry(r * 0.85, r, h, 10), stumpMat
+      );
+      stump.position.set(sx, yT + h / 2 + 0.04, sz);
+      stump.castShadow = true;
+      scene.add(stump);
+      const cut = new THREE.Mesh(
+        new THREE.CylinderGeometry(r * 0.82, r * 0.82, 0.04, 10), cutMat
+      );
+      cut.position.set(sx, yT + h + 0.04, sz);
+      scene.add(cut);
+    }
+    const logMat = new THREE.MeshStandardMaterial({ color: 0x4e342e, roughness: 1 });
+    const logCount = Math.max(2, Math.floor(5 * scale));
+    for (let i = 0; i < logCount; i++) {
+      const logLen = Math.min(width * 0.35, 1.8 + Math.random() * 0.8);
+      const log = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.22, 0.22, logLen, 10), logMat
+      );
+      log.position.set(
+        cx + (Math.random() - 0.5) * (width - 1.5),
+        yT + 0.28,
+        cz + (Math.random() - 0.5) * (depth - 1.5)
+      );
+      log.rotation.z = Math.PI / 2;
+      log.rotation.y = Math.random() * Math.PI;
+      log.castShadow = true;
+      scene.add(log);
+    }
   }
   // Surviving live trees ringing the edges — skipped when addSurvivingTrees=false
   // (e.g. for the eroded strip beside the NBS terrace, which should be fully bare)
@@ -824,10 +834,11 @@ function buildDeforestation(cx, cz, width = 8, depth = 6, addSurvivingTrees = tr
     });
   }
 }
-buildDeforestation(8, -8, 8, 6);     // big patch on the central south plain
-// Eroded bare strip beside the agroforestry terrace — no surviving trees,
-// fully bare ground so the contrast with NBS is clean.
-buildDeforestation(0.5, 17, 5, 2.5, false);
+// Pure deforestation: stumps + logs + edge trees, FLAT bare ground (no gullies)
+buildDeforestation(8, -8, 8, 6, true, true, false);
+// Pure erosion strip beside the agroforestry terrace: bare ground with
+// carved gully depressions, NO stumps/logs (those would imply deforestation).
+buildDeforestation(0.5, 17, 5, 2.5, false, false, true);
 
 // ---------- SOIL EROSION DEMO ----------
 // Without vegetation, bare slopes are scoured by runoff into gullies, and
@@ -934,7 +945,8 @@ function buildErosionDemo(stripCx, stripCz, stripWidth = 5) {
   scene.add(plume);
 }
 buildErosionDemo(0.5, 17, 5);
-buildErosionDemo(8, -8);
+// (removed buildErosionDemo at (8, -8) — that patch is pure deforestation now.
+//  Erosion demo lives only on the eroded strip at (0.5, 17) beside the NBS.)
 
 // ---------- INUNDATION / FLOODING ZONE ----------
 // Shows where river water has overflowed its banks onto the surrounding
