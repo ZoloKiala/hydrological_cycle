@@ -344,28 +344,32 @@ function buildRiverNetwork() {
   // Control points: [x, z, widthFactor].
   // Pronounced meanders — z amplitude ±3, wavelength ~3 x-units, six bends.
   // Centripetal CatmullRom keeps the curve smooth through the sharp swings.
+  // Width grows gradually from a narrow headwater (~0.25) at the spring
+  // source to a wide delta (~2.75) at the river mouth — matches how
+  // first-order streams progressively gather discharge downstream.
   const mainRiver = [
-    [9.5,  0.8, 0.92],
-    [8.5,  3.0, 0.95],    // BEND 1 — north
-    [7.0,  1.5, 0.99],
-    [5.5, -2.0, 1.04],    // BEND 2 — south
-    [4.0,  0.5, 1.10],
-    [2.5,  3.0, 1.16],    // BEND 3 — north
-    [1.0,  0.5, 1.22],
-    [-0.5,-2.0, 1.30],    // BEND 4 — south
-    [-2.0, 0.5, 1.38],
-    [-3.5, 2.8, 1.46],    // BEND 5 — north
-    [-5.0, 0.5, 1.55],
-    [-6.5,-2.0, 1.65],    // BEND 6 — south
-    [-8.0, 0.0, 1.75],
-    [-10.0, 1.2, 1.85],   // gentle dampening
+    [9.5, -1.5, 0.25],    // SOURCE — moved further north so the river starts higher up the slope
+    [9.0,  1.2, 0.34],    // transition bend down toward old BEND 1
+    [8.5,  3.0, 0.40],    // BEND 1 — north, still small
+    [7.0,  1.5, 0.55],
+    [5.5, -2.0, 0.72],    // BEND 2 — south, growing
+    [4.0,  0.5, 0.90],
+    [2.5,  3.0, 1.05],    // BEND 3 — north
+    [1.0,  0.5, 1.20],
+    [-0.5,-2.0, 1.32],    // BEND 4 — south
+    [-2.0, 0.5, 1.42],
+    [-3.5, 2.8, 1.52],    // BEND 5 — north
+    [-5.0, 0.5, 1.62],
+    [-6.5,-2.0, 1.72],    // BEND 6 — south
+    [-8.0, 0.0, 1.82],
+    [-10.0, 1.2, 1.90],
     [-12.5,-0.4, 2.00],
     [-15.0,-1.0, 2.20],
     [-17.5,-1.0, 2.45],
     // Delta extending across the cliff edge into the basin
     [-19.0,-1.0, 2.60], [-21.0,-1.0, 2.75],
   ];
-  // East tributary joins main river at the (7, 1.5) crossing (after BEND 1)
+  // East tributary joins main river at the (7, 1.5) crossing (after BEND 1).
   const tributaryEast = [
     [22, 3, 0.32], [19, 2.5, 0.42], [16, 2.0, 0.52],
     [13, 1.8, 0.62], [10, 1.6, 0.72], [8.5, 1.5, 0.80], [7, 1.5, 0.82],
@@ -397,7 +401,9 @@ function buildRiverNetwork() {
       const lo = Math.floor(seg), hi = Math.min(lo + 1, wf.length - 1);
       const frac = seg - lo;
       const w = (wf[lo] * (1 - frac) + wf[hi] * frac) * baseWidth;
-      const bw = w + 0.45;
+      // Narrow sandy bank — the wide bank was creating a brown strip
+      // between rivers and adjacent ponds.
+      const bw = w + 0.15;
 
       // Sample terrain at each edge so the ribbon tilts to follow slopes
       // instead of sticking out flat from the curve center.
@@ -455,6 +461,49 @@ function buildRiverNetwork() {
   return { waterTex };
 }
 const riverNet = buildRiverNetwork();
+
+// ---------- WATERSHED BOUNDARY ----------
+// A visible divide around the upper catchment so "watershed" is not just a label.
+function buildWatershedBoundary() {
+  const outline = [
+    [8.5, -15.5],
+    [13.5, -20.5],
+    [23.5, -19.0],
+    [29.0, -10.5],
+    [27.0, -1.0],
+    [20.0, 5.5],
+    [11.5, 2.8],
+    [8.0, -6.0],
+  ];
+  const points = outline.map(([x, z]) => new THREE.Vector3(x, sampleTerrainY(x, z) + 0.35, z));
+  points.push(points[0].clone());
+  const curve = new THREE.CatmullRomCurve3(points, false, 'centripetal');
+  const tube = new THREE.Mesh(
+    new THREE.TubeGeometry(curve, 120, 0.08, 8, false),
+    new THREE.MeshStandardMaterial({
+      color: 0xfff176,
+      emissive: 0xfbc02d,
+      emissiveIntensity: 0.55,
+      roughness: 0.45,
+    })
+  );
+  tube.castShadow = false;
+  scene.add(tube);
+
+  const markerMat = new THREE.MeshStandardMaterial({
+    color: 0x0d47a1,
+    emissive: 0x1565c0,
+    emissiveIntensity: 0.25,
+    roughness: 0.55,
+  });
+  outline.forEach(([x, z]) => {
+    const marker = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.65, 10), markerMat);
+    marker.position.set(x, sampleTerrainY(x, z) + 0.34, z);
+    marker.castShadow = true;
+    scene.add(marker);
+  });
+}
+// buildWatershedBoundary(); // disabled — user requested removal of the yellow ring around the mountain
 
 // ---------- TREES ----------
 function makeTree(x, z, scale = 1) {
@@ -759,13 +808,20 @@ function buildDeforestation(cx, cz, width = 8, depth = 6,
     scene.add(wall);
   });
   // Darker scattered patches
-  const patchCount = Math.max(8, Math.floor(22 * scale));
+  const patchCount = Math.max(10, Math.floor(30 * scale));
   for (let i = 0; i < patchCount; i++) {
     const patch = new THREE.Mesh(
-      new THREE.CircleGeometry(0.3 + Math.random() * 0.35, 10),
-      new THREE.MeshStandardMaterial({ color: 0x3e2723, roughness: 1 })
+      new THREE.CircleGeometry(0.25 + Math.random() * 0.55, 10),
+      new THREE.MeshStandardMaterial({
+        color: Math.random() < 0.65 ? 0x3e2723 : 0x8d5a35,
+        roughness: 1,
+        transparent: true,
+        opacity: 0.9,
+      })
     );
     patch.rotation.x = -Math.PI / 2;
+    patch.rotation.z = Math.random() * Math.PI;
+    patch.scale.set(1.2 + Math.random() * 1.2, 0.65 + Math.random() * 0.6, 1);
     patch.position.set(
       cx + (Math.random() - 0.5) * (width - 1),
       yT + 0.105,
@@ -773,13 +829,31 @@ function buildDeforestation(cx, cz, width = 8, depth = 6,
     );
     scene.add(patch);
   }
+  if (addStumpsAndLogs) {
+    const trackMat = new THREE.MeshStandardMaterial({
+      color: 0x2b1b12,
+      transparent: true,
+      opacity: 0.62,
+      roughness: 1,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    [-0.45, 0.45].forEach(offset => {
+      const track = new THREE.Mesh(new THREE.PlaneGeometry(0.28, depth * 0.95), trackMat);
+      track.rotation.x = -Math.PI / 2;
+      track.rotation.z = -0.18;
+      track.position.set(cx - width * 0.18 + offset, yT + 0.115, cz);
+      scene.add(track);
+    });
+  }
   // Stumps + fallen logs are the visual markers of DEFORESTATION (cleared
   // trees). Skipped when addStumpsAndLogs=false so a pure erosion strip
   // stays free of cut-tree debris.
   if (addStumpsAndLogs) {
     const stumpMat = new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 1 });
     const cutMat = new THREE.MeshStandardMaterial({ color: 0xc9a663, roughness: 0.85 });
-    const stumpCount = Math.max(5, Math.floor(14 * scale));
+    const ringMat = new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.85 });
+    const stumpCount = Math.max(10, Math.floor(24 * scale));
     for (let i = 0; i < stumpCount; i++) {
       const sx = cx + (Math.random() - 0.5) * (width - 1);
       const sz = cz + (Math.random() - 0.5) * (depth - 1);
@@ -796,9 +870,16 @@ function buildDeforestation(cx, cz, width = 8, depth = 6,
       );
       cut.position.set(sx, yT + h + 0.04, sz);
       scene.add(cut);
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(r * 0.42, 0.012, 5, 16),
+        ringMat
+      );
+      ring.rotation.x = Math.PI / 2;
+      ring.position.set(sx, yT + h + 0.075, sz);
+      scene.add(ring);
     }
     const logMat = new THREE.MeshStandardMaterial({ color: 0x4e342e, roughness: 1 });
-    const logCount = Math.max(2, Math.floor(5 * scale));
+    const logCount = Math.max(5, Math.floor(10 * scale));
     for (let i = 0; i < logCount; i++) {
       const logLen = Math.min(width * 0.35, 1.8 + Math.random() * 0.8);
       const log = new THREE.Mesh(
@@ -814,6 +895,124 @@ function buildDeforestation(cx, cz, width = 8, depth = 6,
       log.castShadow = true;
       scene.add(log);
     }
+    const branchMat = new THREE.MeshStandardMaterial({ color: 0x3e2723, roughness: 1 });
+    for (let i = 0; i < Math.max(18, Math.floor(34 * scale)); i++) {
+      const len = 0.55 + Math.random() * 1.05;
+      const branch = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.025, 0.045, len, 5),
+        branchMat
+      );
+      const bx = cx + (Math.random() - 0.5) * (width - 0.8);
+      const bz = cz + (Math.random() - 0.5) * (depth - 0.8);
+      branch.position.set(bx, yT + 0.16 + Math.random() * 0.08, bz);
+      branch.rotation.z = Math.PI / 2 + (Math.random() - 0.5) * 0.45;
+      branch.rotation.y = Math.random() * Math.PI;
+      branch.castShadow = true;
+      scene.add(branch);
+    }
+    const slashPileMat = new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 1 });
+    for (let p = 0; p < 4; p++) {
+      const px = cx + (Math.random() - 0.5) * (width - 1.2);
+      const pz = cz + (Math.random() - 0.5) * (depth - 1.2);
+      for (let i = 0; i < 5; i++) {
+        const stick = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.035, 0.05, 0.8 + Math.random() * 0.55, 5),
+          slashPileMat
+        );
+        stick.position.set(
+          px + (Math.random() - 0.5) * 0.65,
+          yT + 0.18 + i * 0.035,
+          pz + (Math.random() - 0.5) * 0.65
+        );
+        stick.rotation.z = Math.PI / 2 + (Math.random() - 0.5) * 0.8;
+        stick.rotation.y = Math.random() * Math.PI;
+        stick.castShadow = true;
+        scene.add(stick);
+      }
+    }
+    // ---- STACKED LOG PILE — cut timber ready for transport ----
+    const pileMat = new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 1 });
+    const pileEndMat = new THREE.MeshStandardMaterial({ color: 0xc9a663, roughness: 0.85 });
+    const pileX = cx + width * 0.28, pileZ = cz - depth * 0.18;
+    const pileYaw = (Math.random() - 0.5) * 0.3;
+    // 3 rows × varying counts for a pyramid stack
+    const pyramid = [4, 3, 2];
+    let pileBaseY = yT + 0.27;
+    pyramid.forEach((cnt, row) => {
+      for (let k = 0; k < cnt; k++) {
+        const offset = (k - (cnt - 1) / 2) * 0.50;
+        const log = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.24, 0.24, 1.8, 12), pileMat
+        );
+        log.position.set(
+          pileX + Math.cos(pileYaw) * offset,
+          pileBaseY + row * 0.48,
+          pileZ - Math.sin(pileYaw) * offset
+        );
+        log.rotation.z = Math.PI / 2;
+        log.rotation.y = pileYaw;
+        log.castShadow = true;
+        scene.add(log);
+        // Cut ends (lighter discs) on both sides of each log
+        [-0.9, 0.9].forEach(end => {
+          const cap = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.235, 0.235, 0.04, 12), pileEndMat
+          );
+          cap.position.set(
+            pileX + Math.cos(pileYaw) * offset + Math.cos(pileYaw + Math.PI / 2) * end,
+            pileBaseY + row * 0.48,
+            pileZ - Math.sin(pileYaw) * offset - Math.sin(pileYaw + Math.PI / 2) * end
+          );
+          cap.rotation.z = Math.PI / 2;
+          cap.rotation.y = pileYaw;
+          scene.add(cap);
+        });
+      }
+    });
+    // ---- SAWDUST piles around the larger stumps ----
+    const sawdustMat = new THREE.MeshStandardMaterial({ color: 0xe6d49a, roughness: 1 });
+    for (let i = 0; i < Math.max(8, Math.floor(14 * scale)); i++) {
+      const sd = new THREE.Mesh(
+        new THREE.CircleGeometry(0.22 + Math.random() * 0.18, 12),
+        sawdustMat
+      );
+      sd.rotation.x = -Math.PI / 2;
+      sd.position.set(
+        cx + (Math.random() - 0.5) * (width - 0.8),
+        yT + 0.13,
+        cz + (Math.random() - 0.5) * (depth - 0.8)
+      );
+      scene.add(sd);
+    }
+    // ---- PARTIALLY FELLED TREE — tilted at the edge of the patch ----
+    const fallenTreeGroup = new THREE.Group();
+    const fellTrunk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.22, 0.28, 2.8, 8),
+      new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 1 })
+    );
+    fellTrunk.position.y = 1.4;
+    fellTrunk.castShadow = true;
+    fallenTreeGroup.add(fellTrunk);
+    // Sparse remaining foliage on the falling tree
+    const fellFoliageMat = new THREE.MeshStandardMaterial({ color: 0x558b2f, roughness: 0.9 });
+    [[0, 2.4, 0, 0.8], [0.3, 2.7, 0.15, 0.6], [-0.25, 2.6, -0.2, 0.65]].forEach(p => {
+      const blob = new THREE.Mesh(new THREE.SphereGeometry(p[3], 10, 8), fellFoliageMat);
+      blob.position.set(p[0], p[1], p[2]);
+      blob.castShadow = true;
+      fallenTreeGroup.add(blob);
+    });
+    // Tilt the whole tree (mid-fall pose)
+    fallenTreeGroup.position.set(cx + width * 0.32, yT + 0.04, cz + depth * 0.32);
+    fallenTreeGroup.rotation.z = -0.85;  // tilted ~50° off vertical
+    fallenTreeGroup.rotation.y = (Math.random() - 0.5) * 0.5;
+    scene.add(fallenTreeGroup);
+    // Visible saw cut at the base (light wedge missing)
+    const cutWedge = new THREE.Mesh(
+      new THREE.BoxGeometry(0.5, 0.18, 0.5),
+      new THREE.MeshStandardMaterial({ color: 0xc9a663, roughness: 0.85 })
+    );
+    cutWedge.position.set(cx + width * 0.32 + 0.15, yT + 0.18, cz + depth * 0.32);
+    scene.add(cutWedge);
   }
   // Surviving live trees ringing the edges — skipped when addSurvivingTrees=false
   // (e.g. for the eroded strip beside the NBS terrace, which should be fully bare)
@@ -832,13 +1031,231 @@ function buildDeforestation(cx, cz, width = 8, depth = 6,
                cz + o[1] + (Math.random() - 0.5) * 0.4,
                0.65 + Math.random() * 0.3);
     });
+    const brokenMat = new THREE.MeshStandardMaterial({ color: 0x4e342e, roughness: 1 });
+    const brokenOffsets = [[-hw * 0.9, -hd], [hw * 0.88, hd * 0.8], [0, hd], [hw, -hd * 0.45]];
+    brokenOffsets.forEach(o => {
+      const trunk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.11, 0.18, 1.2, 7),
+        brokenMat
+      );
+      const x = cx + o[0] + (Math.random() - 0.5) * 0.35;
+      const z = cz + o[1] + (Math.random() - 0.5) * 0.35;
+      trunk.position.set(x, sampleTerrainY(x, z) + 0.55, z);
+      trunk.rotation.z = (Math.random() - 0.5) * 0.25;
+      trunk.castShadow = true;
+      scene.add(trunk);
+    });
   }
 }
 // Pure deforestation: stumps + logs + edge trees, FLAT bare ground (no gullies)
-buildDeforestation(8, -8, 8, 6, true, true, false);
-// Pure erosion strip beside the agroforestry terrace: bare ground with
-// carved gully depressions, NO stumps/logs (those would imply deforestation).
-buildDeforestation(0.5, 17, 5, 2.5, false, false, true);
+buildDeforestation(8, -8, 9, 7, true, true, false);
+// (Soil-erosion strip removed per user request.)
+
+// ---------- AFFORESTATION ----------
+// Newly-planted forest patch right next to the deforestation site, so the
+// recovery counterpoint reads visually. Rows of saplings in protective
+// tubes, with a few older trees mixed in showing progressive growth.
+function buildAfforestation(cx, cz, width = 5, depth = 4) {
+  const yT = sampleTerrainY(cx, cz);
+  // Tilled / prepared soil base (lighter than deforestation soil, indicating
+  // it's been cultivated for planting)
+  const prepMat = new THREE.MeshStandardMaterial({
+    color: 0x8d6e63, roughness: 1,
+  });
+  const prep = new THREE.Mesh(
+    new THREE.BoxGeometry(width, 0.06, depth), prepMat
+  );
+  prep.position.set(cx, yT + 0.04, cz);
+  prep.receiveShadow = true;
+  scene.add(prep);
+  const edgeMat = new THREE.MeshStandardMaterial({ color: 0x2e7d32, roughness: 0.95 });
+  [
+    [width + 0.35, 0.05, 0.16, 0, depth / 2 + 0.12],
+    [width + 0.35, 0.05, 0.16, 0, -depth / 2 - 0.12],
+    [0.16, 0.05, depth + 0.35, width / 2 + 0.12, 0],
+    [0.16, 0.05, depth + 0.35, -width / 2 - 0.12, 0],
+  ].forEach(([w, h, d, ox, oz]) => {
+    const edge = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), edgeMat);
+    edge.position.set(cx + ox, yT + 0.075, cz + oz);
+    edge.receiveShadow = true;
+    scene.add(edge);
+  });
+  // Furrow lines (parallel darker grooves showing tilled rows)
+  const furrowMat = new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 1 });
+  const furrowRows = Math.max(3, Math.floor(depth));
+  for (let r = 0; r < furrowRows; r++) {
+    const fz = cz - depth / 2 + 0.3 + r * ((depth - 0.6) / Math.max(1, furrowRows - 1));
+    const furrow = new THREE.Mesh(
+      new THREE.BoxGeometry(width - 0.4, 0.02, 0.06), furrowMat
+    );
+    furrow.position.set(cx, yT + 0.08, fz);
+    scene.add(furrow);
+  }
+  // Rows of saplings — small thin trunks with tiny canopies
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 1 });
+  const tubeMat = new THREE.MeshStandardMaterial({
+    color: 0xc8e6c9, transparent: true, opacity: 0.55,
+    side: THREE.DoubleSide, depthWrite: false,
+  });
+  const stakeMat = new THREE.MeshStandardMaterial({ color: 0x4e342e, roughness: 1 });
+  const mulchMat = new THREE.MeshStandardMaterial({
+    color: 0x795548,
+    transparent: true,
+    opacity: 0.88,
+    roughness: 1,
+    side: THREE.DoubleSide,
+  });
+  const dripMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.7 });
+  const greens = [0x66bb6a, 0x81c784, 0x4caf50, 0x8bc34a];
+  const rows = furrowRows;
+  const cols = Math.max(6, Math.floor(width * 1.15));
+  for (let r = 0; r < rows; r++) {
+    const sz = cz - depth / 2 + 0.5 + r * ((depth - 1) / Math.max(1, rows - 1));
+    const drip = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, width - 0.8, 6), dripMat);
+    drip.position.set(cx, yT + 0.125, sz + 0.1);
+    drip.rotation.z = Math.PI / 2;
+    scene.add(drip);
+    for (let c = 0; c < cols; c++) {
+      const sx = cx - width / 2 + 0.5 + c * ((width - 1) / Math.max(1, cols - 1))
+                 + (Math.random() - 0.5) * 0.12;
+      // Skip a few — not every spot has a sapling
+      if (Math.random() < 0.1) continue;
+      const mulch = new THREE.Mesh(new THREE.CircleGeometry(0.18, 14), mulchMat);
+      mulch.rotation.x = -Math.PI / 2;
+      mulch.position.set(sx, yT + 0.12, sz);
+      scene.add(mulch);
+      // Small trunk
+      const trunk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.035, 0.05, 0.4 + Math.random() * 0.15, 5),
+        trunkMat
+      );
+      trunk.position.set(sx, yT + 0.24, sz);
+      scene.add(trunk);
+      // Tiny canopy (varied size for age variation)
+      const canopySize = 0.10 + Math.random() * 0.07;
+      const canopy = new THREE.Mesh(
+        new THREE.SphereGeometry(canopySize, 8, 6),
+        new THREE.MeshStandardMaterial({
+          color: greens[Math.floor(Math.random() * greens.length)],
+          roughness: 0.85, flatShading: true,
+        })
+      );
+      canopy.position.set(sx, yT + 0.5 + Math.random() * 0.08, sz);
+      canopy.castShadow = true;
+      scene.add(canopy);
+      // Protective tube around ~50% of saplings (real reforestation practice)
+      if (Math.random() < 0.55) {
+        const tube = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.085, 0.085, 0.38, 10, 1, true),
+          tubeMat
+        );
+        tube.position.set(sx, yT + 0.22, sz);
+        scene.add(tube);
+      }
+      // Wooden support stake leaning slightly
+      const stake = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.018, 0.018, 0.55, 4),
+        stakeMat
+      );
+      stake.position.set(sx + 0.09, yT + 0.32, sz);
+      stake.rotation.z = -0.08;
+      scene.add(stake);
+    }
+  }
+  // A few older saplings showing they have been growing — taller trees
+  for (let i = 0; i < 7; i++) {
+    const ox = cx + (Math.random() - 0.5) * (width - 0.8);
+    const oz = cz + (Math.random() - 0.5) * (depth - 0.8);
+    if (Math.random() < 0.55) makeTree(ox, oz, 0.38 + Math.random() * 0.24);
+    else makeDeciduousTree(ox, oz, 0.34 + Math.random() * 0.2);
+  }
+  const fenceMat = new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 1 });
+  const fenceSpots = [
+    [-width / 2 - 0.25, -depth / 2 - 0.25], [0, -depth / 2 - 0.25], [width / 2 + 0.25, -depth / 2 - 0.25],
+    [-width / 2 - 0.25, depth / 2 + 0.25], [0, depth / 2 + 0.25], [width / 2 + 0.25, depth / 2 + 0.25],
+    [-width / 2 - 0.25, 0], [width / 2 + 0.25, 0],
+  ];
+  fenceSpots.forEach(([ox, oz]) => {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 0.6, 5), fenceMat);
+    post.position.set(cx + ox, yT + 0.32, cz + oz);
+    post.castShadow = true;
+    scene.add(post);
+  });
+  [
+    [0, -depth / 2 - 0.25, width + 0.5, 0],
+    [0, depth / 2 + 0.25, width + 0.5, 0],
+    [-width / 2 - 0.25, 0, depth + 0.5, Math.PI / 2],
+    [width / 2 + 0.25, 0, depth + 0.5, Math.PI / 2],
+  ].forEach(([ox, oz, len, rot]) => {
+    const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, len, 5), fenceMat);
+    rail.position.set(cx + ox, yT + 0.43, cz + oz);
+    rail.rotation.z = Math.PI / 2;
+    rail.rotation.y = rot;
+    scene.add(rail);
+  });
+  const nursery = new THREE.Mesh(
+    new THREE.BoxGeometry(1.2, 0.08, 0.72),
+    new THREE.MeshStandardMaterial({ color: 0x3e2723, roughness: 1 })
+  );
+  nursery.position.set(cx + width * 0.32, yT + 0.12, cz + depth * 0.36);
+  nursery.receiveShadow = true;
+  scene.add(nursery);
+  for (let r = 0; r < 2; r++) {
+    for (let c = 0; c < 5; c++) {
+      const seed = new THREE.Mesh(
+        new THREE.ConeGeometry(0.055, 0.22, 5),
+        new THREE.MeshStandardMaterial({ color: greens[(r + c) % greens.length], roughness: 0.9 })
+      );
+      seed.position.set(
+        cx + width * 0.32 - 0.42 + c * 0.21,
+        yT + 0.25,
+        cz + depth * 0.36 - 0.18 + r * 0.28
+      );
+      scene.add(seed);
+    }
+  }
+  const tank = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.28, 0.32, 0.55, 16),
+    new THREE.MeshStandardMaterial({
+      color: 0x90caf9,
+      emissive: 0x1565c0,
+      emissiveIntensity: 0.15,
+      roughness: 0.35,
+    })
+  );
+  tank.position.set(cx - width * 0.42, yT + 0.34, cz + depth * 0.35);
+  tank.castShadow = true;
+  scene.add(tank);
+  const tankHose = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.15, 6), dripMat);
+  tankHose.position.set(cx - width * 0.28, yT + 0.14, cz + depth * 0.25);
+  tankHose.rotation.z = Math.PI / 2;
+  tankHose.rotation.y = -0.35;
+  scene.add(tankHose);
+  // Wheelbarrow / shovel hint at one corner (small dark cylinder)
+  const tool = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.025, 0.025, 0.75, 5),
+    stakeMat
+  );
+  tool.position.set(cx - width * 0.42, yT + 0.4, cz + depth * 0.42);
+  tool.rotation.z = 0.6;
+  scene.add(tool);
+  // A small "newly planted" sign
+  const signPost = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.025, 0.025, 0.5, 4), stakeMat
+  );
+  signPost.position.set(cx - width * 0.42, yT + 0.27, cz - depth * 0.42);
+  scene.add(signPost);
+  const signBoard = new THREE.Mesh(
+    new THREE.BoxGeometry(0.5, 0.18, 0.04),
+    new THREE.MeshStandardMaterial({
+      color: 0x4caf50, emissive: 0x2e7d32, emissiveIntensity: 0.4,
+    })
+  );
+  signBoard.position.set(cx - width * 0.42, yT + 0.5, cz - depth * 0.42);
+  scene.add(signBoard);
+}
+// Right beside the deforestation patch — recovery counterpoint
+buildAfforestation(8, -15.5, 6.2, 5.4);
 
 // ---------- SOIL EROSION DEMO ----------
 // Without vegetation, bare slopes are scoured by runoff into gullies, and
@@ -944,9 +1361,231 @@ function buildErosionDemo(stripCx, stripCz, stripWidth = 5) {
   plume.position.set(stripCx + 1.6, 0.24, stripCz + 5.9);
   scene.add(plume);
 }
-buildErosionDemo(0.5, 17, 5);
-// (removed buildErosionDemo at (8, -8) — that patch is pure deforestation now.
-//  Erosion demo lives only on the eroded strip at (0.5, 17) beside the NBS.)
+// (Erosion demo function kept for reference but not called.)
+
+// ---------- EROSION vs EROSION-CONTROL DEMO ----------
+// A side-by-side comparison patch placed between the school riparian
+// zone and the tied-ridges terrace, so visitors can read "what happens
+// without NBS" right next to "what NBS does about it".
+function buildEvsECDemo(cx, cz) {
+  const yT = sampleTerrainY(cx, cz);
+  // ---- LEFT (west): EROSION — gully as a real HOLE in the ground ----
+  // We use THREE.Shape with a hole path so the soil pad has an actual
+  // rectangular CUTOUT. A dark plane sits recessed below that cutout, so
+  // looking down through the hole you see darkness — a real hole effect.
+  const ePadX = cx - 1.2;
+  const erodedSoilMat = new THREE.MeshStandardMaterial({
+    color: 0x6d4c41, roughness: 1, side: THREE.DoubleSide,
+  });
+  const darkSoilMat   = new THREE.MeshStandardMaterial({ color: 0x1b1410, roughness: 1 });
+  const innerWallMat  = new THREE.MeshStandardMaterial({
+    color: 0x3e2723, roughness: 1, side: THREE.DoubleSide,
+  });
+
+  // Build the pad as a circle with a rectangular hole cut through it
+  const padR = 1.10;
+  const holeHalfW = 0.20;   // gully half-width (x)
+  const holeHalfL = 0.85;   // gully half-length (z)
+  const padShape = new THREE.Shape();
+  for (let i = 0; i <= 24; i++) {
+    const a = (i / 24) * Math.PI * 2;
+    const x = Math.cos(a) * padR;
+    const z = Math.sin(a) * padR;
+    if (i === 0) padShape.moveTo(x, z); else padShape.lineTo(x, z);
+  }
+  const holePath = new THREE.Path();
+  holePath.moveTo(-holeHalfW, -holeHalfL);
+  holePath.lineTo( holeHalfW, -holeHalfL);
+  holePath.lineTo( holeHalfW,  holeHalfL);
+  holePath.lineTo(-holeHalfW,  holeHalfL);
+  holePath.lineTo(-holeHalfW, -holeHalfL);
+  padShape.holes.push(holePath);
+  const padGeo = new THREE.ShapeGeometry(padShape);
+  const erosionPad = new THREE.Mesh(padGeo, erodedSoilMat);
+  erosionPad.rotation.x = -Math.PI / 2;
+  erosionPad.position.set(ePadX, yT + 0.06, cz);
+  erosionPad.receiveShadow = true;
+  scene.add(erosionPad);
+
+  // Inner walls of the hole — 4 vertical planes lining the cutout, going
+  // DOWN from the pad surface. Visible through the hole as the gully sides.
+  const wallDepth = 0.45;
+  const wallYCenter = yT + 0.06 - wallDepth / 2;
+  // North + South end walls (along x-axis)
+  [-holeHalfL, holeHalfL].forEach(dz => {
+    const w = new THREE.Mesh(
+      new THREE.PlaneGeometry(holeHalfW * 2, wallDepth),
+      innerWallMat
+    );
+    w.position.set(ePadX, wallYCenter, cz + dz);
+    if (dz > 0) w.rotation.y = Math.PI;
+    scene.add(w);
+  });
+  // East + West side walls (along z-axis)
+  [-holeHalfW, holeHalfW].forEach(dx => {
+    const w = new THREE.Mesh(
+      new THREE.PlaneGeometry(holeHalfL * 2, wallDepth),
+      innerWallMat
+    );
+    w.rotation.y = Math.PI / 2;
+    w.position.set(ePadX + dx, wallYCenter, cz);
+    if (dx > 0) w.rotation.y = -Math.PI / 2;
+    scene.add(w);
+  });
+  // Dark bottom of the hole — visibly recessed
+  const holeBottom = new THREE.Mesh(
+    new THREE.PlaneGeometry(holeHalfW * 2 - 0.01, holeHalfL * 2 - 0.01),
+    darkSoilMat
+  );
+  holeBottom.rotation.x = -Math.PI / 2;
+  holeBottom.position.set(ePadX, yT + 0.06 - wallDepth + 0.005, cz);
+  scene.add(holeBottom);
+
+  // Small crumbled-soil debris pile spilling out at the downstream end
+  for (let i = 0; i < 3; i++) {
+    const debris = new THREE.Mesh(
+      new THREE.SphereGeometry(0.07 + Math.random() * 0.05, 6, 4),
+      new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 1 })
+    );
+    debris.position.set(ePadX - 0.15 + i * 0.15, yT + 0.10, cz + 0.95);
+    scene.add(debris);
+  }
+  // Muddy puddle just south of the hole's outlet
+  const puddle = new THREE.Mesh(
+    new THREE.CircleGeometry(0.42, 18),
+    new THREE.MeshStandardMaterial({
+      color: 0x8d6e63, emissive: 0x5d4037, emissiveIntensity: 0.3,
+      transparent: true, opacity: 0.88, roughness: 0.5,
+    })
+  );
+  puddle.rotation.x = -Math.PI / 2;
+  puddle.position.set(ePadX, yT + 0.075, cz + 1.25);
+  scene.add(puddle);
+
+  // ---- RIGHT (east): EROSION CONTROL — contour bunds + grass strips ----
+  const cPadX = cx + 1.2;
+  const healthyMat = new THREE.MeshStandardMaterial({ color: 0x9ccc65, roughness: 0.85 });
+  const bundMat = new THREE.MeshStandardMaterial({ color: 0x795548, roughness: 1 });
+  const mulchMat = new THREE.MeshStandardMaterial({ color: 0xa1887f, roughness: 1 });
+  // Healthy green ground pad
+  const controlPad = new THREE.Mesh(
+    new THREE.CircleGeometry(1.1, 24),
+    healthyMat
+  );
+  controlPad.rotation.x = -Math.PI / 2;
+  controlPad.position.set(cPadX, yT + 0.06, cz);
+  controlPad.receiveShadow = true;
+  scene.add(controlPad);
+  // Three contour bunds (small earthen ridges across the slope, perpendicular
+  // to runoff direction) — these trap water so it infiltrates instead of running off
+  for (let i = 0; i < 3; i++) {
+    const bundZ = cz - 0.7 + i * 0.7;
+    const bund = new THREE.Mesh(
+      new THREE.BoxGeometry(2.0, 0.18, 0.18),
+      bundMat
+    );
+    bund.position.set(cPadX, yT + 0.16, bundZ);
+    bund.castShadow = true;
+    scene.add(bund);
+    // Mulch strip just upstream of each bund
+    const mulch = new THREE.Mesh(
+      new THREE.BoxGeometry(1.9, 0.03, 0.18),
+      mulchMat
+    );
+    mulch.position.set(cPadX, yT + 0.09, bundZ - 0.20);
+    scene.add(mulch);
+  }
+  // Grass tufts scattered between the bunds
+  for (let i = 0; i < 14; i++) {
+    const gx = cPadX - 0.9 + Math.random() * 1.8;
+    const gz = cz - 0.95 + Math.random() * 1.9;
+    _tallGrassMaker(gx, gz);
+  }
+  // Two small saplings on the controlled side
+  makeTree(cPadX - 0.75, cz - 0.95, 0.45);
+  makeTree(cPadX + 0.85, cz + 0.85, 0.45);
+}
+// Tucked just west of the agroforestry terrace, between the tied-ridges
+// middle tier (z≈7) and the forage-grass bottom tier (z≈9.4) — so the
+// "without NBS / with NBS" comparison sits right beside its solutions.
+function buildVisibleErosionGullyHole(cx, cz) {
+  const yT = sampleTerrainY(cx, cz);
+  const soilMat = new THREE.MeshStandardMaterial({ color: 0x8d5a35, roughness: 1, side: THREE.DoubleSide });
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x3e2723, roughness: 1, side: THREE.DoubleSide });
+  const bottomMat = new THREE.MeshStandardMaterial({ color: 0x080504, roughness: 1 });
+  const wetMat = new THREE.MeshStandardMaterial({
+    color: 0x5d4037,
+    emissive: 0x2b170f,
+    emissiveIntensity: 0.35,
+    roughness: 0.55,
+  });
+
+  const pad = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.14, 5.0), soilMat);
+  pad.position.set(cx, yT + 0.07, cz);
+  pad.castShadow = true;
+  pad.receiveShadow = true;
+  scene.add(pad);
+
+  const cut = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.08, 4.0), bottomMat);
+  cut.position.set(cx, yT + 0.18, cz);
+  scene.add(cut);
+
+  [-1, 1].forEach(side => {
+    const bank = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.5, 4.15), wallMat);
+    bank.position.set(cx + side * 0.8, yT + 0.28, cz);
+    bank.rotation.z = side * 0.24;
+    bank.castShadow = true;
+    scene.add(bank);
+  });
+
+  const mouth = new THREE.Mesh(new THREE.ConeGeometry(1.0, 1.25, 24), bottomMat);
+  mouth.position.set(cx, yT + 0.2, cz + 2.05);
+  mouth.rotation.x = Math.PI / 2;
+  mouth.scale.set(1.45, 0.75, 1);
+  scene.add(mouth);
+
+  const wetLine = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.045, 3.4), wetMat);
+  wetLine.position.set(cx, yT + 0.26, cz + 0.1);
+  scene.add(wetLine);
+
+  for (let i = 0; i < 12; i++) {
+    const rill = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.04, 1.0 + Math.random() * 0.8), bottomMat);
+    rill.position.set(cx - 1.7 + Math.random() * 3.4, yT + 0.18, cz - 1.8 + Math.random() * 2.5);
+    rill.rotation.y = (Math.random() < 0.5 ? -1 : 1) * (0.25 + Math.random() * 0.45);
+    scene.add(rill);
+  }
+}
+function buildVisibleErosionControlPatch(cx, cz) {
+  const yT = sampleTerrainY(cx, cz);
+  const grassMat = new THREE.MeshStandardMaterial({ color: 0x8bc34a, roughness: 0.85 });
+  const bundMat = new THREE.MeshStandardMaterial({ color: 0x795548, roughness: 1 });
+  const mulchMat = new THREE.MeshStandardMaterial({ color: 0xa1887f, roughness: 1 });
+  const pad = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.09, 4.2), grassMat);
+  pad.position.set(cx, yT + 0.055, cz);
+  pad.receiveShadow = true;
+  scene.add(pad);
+
+  for (let i = 0; i < 4; i++) {
+    const z = cz - 1.45 + i * 0.95;
+    const bund = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.18, 0.22), bundMat);
+    bund.position.set(cx, yT + 0.18, z);
+    bund.castShadow = true;
+    scene.add(bund);
+    const mulch = new THREE.Mesh(new THREE.BoxGeometry(2.65, 0.035, 0.18), mulchMat);
+    mulch.position.set(cx, yT + 0.12, z - 0.22);
+    scene.add(mulch);
+  }
+
+  for (let i = 0; i < 18; i++) {
+    const gx = cx - 1.3 + Math.random() * 2.6;
+    const gz = cz - 1.8 + Math.random() * 3.6;
+    const tuft = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.5 + Math.random() * 0.25, 5), grassMat);
+    tuft.position.set(gx, sampleTerrainY(gx, gz) + 0.28, gz);
+    scene.add(tuft);
+  }
+}
+buildVisibleErosionGullyHole(0.2, 8.6);
+buildVisibleErosionControlPatch(2.3, 8.6);
 
 // ---------- INUNDATION / FLOODING ZONE ----------
 // Shows where river water has overflowed its banks onto the surrounding
@@ -1076,7 +1715,6 @@ function buildErosionHole(x, z, radius = 0.9) {
   shadow.position.set(x, y + 0.29, z);
   scene.add(shadow);
 }
-buildErosionHole(0.5, 17.0, 1.05);
 
 function buildLargeGully(x, z, length = 4.4) {
   const y = sampleTerrainY(x, z);
@@ -1116,7 +1754,6 @@ function buildLargeGully(x, z, length = 4.4) {
   group.rotation.y = -0.08;
   scene.add(group);
 }
-buildLargeGully(0.5, 17.6, 4.8);
 
 // Riverbank tree clusters — placed FAR from the river path (3+ units
 // perpendicular offset) so trees don't sit on the water.
@@ -1126,11 +1763,501 @@ makeTreeCluster(2.5,  6.0,  4, 1.0, 0.45, 0.75);  // north of bend 3
 makeTreeCluster(-0.5,-5.5,  4, 1.0, 0.45, 0.75);  // south of bend 4
 makeTreeCluster(-3.5, 5.8,  4, 1.0, 0.45, 0.75);  // north of bend 5
 makeTreeCluster(-9.0, 3.0,  4, 1.0, 0.45, 0.75);  // between bend 6 and mouth
+
+// ---------- RIPARIAN UNDERSTORY ----------
+// Layered riverside vegetation: tall reeds at the inner edge (closer to
+// the water), low shrubs / sedge clumps around them, scattered wildflowers,
+// and the occasional fallen log to evoke root systems holding the bank.
+function buildRiparianClump(cx, cz, radius = 1.4) {
+  const reedColors = [0x7cb342, 0x8bc34a, 0x9ccc65];
+  for (let i = 0; i < 9; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const r = Math.random() * radius * 0.55;
+    const x = cx + Math.cos(angle) * r;
+    const z = cz + Math.sin(angle) * r;
+    const reed = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.025, 0.035, 0.55 + Math.random() * 0.3, 4),
+      new THREE.MeshStandardMaterial({
+        color: reedColors[Math.floor(Math.random() * reedColors.length)],
+        roughness: 0.85,
+      })
+    );
+    reed.position.set(x, sampleTerrainY(x, z) + 0.32, z);
+    reed.rotation.z = (Math.random() - 0.5) * 0.18;
+    reed.castShadow = true;
+    scene.add(reed);
+  }
+  const shrubColors = [0x388e3c, 0x2e7d32, 0x558b2f, 0x4caf50];
+  for (let i = 0; i < 6; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const r = 0.3 + Math.random() * radius;
+    const x = cx + Math.cos(angle) * r;
+    const z = cz + Math.sin(angle) * r;
+    const shrub = new THREE.Mesh(
+      new THREE.SphereGeometry(0.18 + Math.random() * 0.14, 10, 7),
+      new THREE.MeshStandardMaterial({
+        color: shrubColors[Math.floor(Math.random() * shrubColors.length)],
+        roughness: 0.9, flatShading: true,
+      })
+    );
+    shrub.position.set(x, sampleTerrainY(x, z) + 0.16, z);
+    shrub.scale.set(1, 0.65, 1);
+    shrub.castShadow = true;
+    scene.add(shrub);
+  }
+  const flowerColors = [0xfff176, 0xef5350, 0xab47bc, 0xffffff, 0xff7043, 0xffeb3b];
+  for (let i = 0; i < 12; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const r = Math.random() * radius * 1.3;
+    const x = cx + Math.cos(angle) * r;
+    const z = cz + Math.sin(angle) * r;
+    const c = flowerColors[Math.floor(Math.random() * flowerColors.length)];
+    const flower = new THREE.Mesh(
+      new THREE.SphereGeometry(0.045, 6, 5),
+      new THREE.MeshStandardMaterial({
+        color: c, emissive: c, emissiveIntensity: 0.4, roughness: 0.5,
+      })
+    );
+    flower.position.set(x, sampleTerrainY(x, z) + 0.1, z);
+    scene.add(flower);
+  }
+  // A couple of exposed roots / fallen sticks for bank-stability narrative
+  for (let i = 0; i < 2; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const r = 0.4 + Math.random() * radius * 0.7;
+    const x = cx + Math.cos(angle) * r;
+    const z = cz + Math.sin(angle) * r;
+    const root = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.06, 0.06, 0.7 + Math.random() * 0.3, 6),
+      new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 1 })
+    );
+    root.position.set(x, sampleTerrainY(x, z) + 0.08, z);
+    root.rotation.z = Math.PI / 2;
+    root.rotation.y = Math.random() * Math.PI;
+    root.castShadow = true;
+    scene.add(root);
+  }
+}
+[
+  [8.5,  5.5], [5.5, -4.5], [2.5,  5.5],
+  [-0.5, -4.5], [-3.5, 5.0], [-9.0, 2.5],
+  // Extra clumps right at the water's edge for density
+  [7.0,  4.2], [4.0, -3.8], [-2.0, 4.4], [-5.0, -3.5], [-7.5, 1.7],
+].forEach(p => buildRiparianClump(p[0], p[1], 1.3));
+
+// ---------- RIPARIAN STRIP — continuous, follows the river curve ----------
+function _cattailMaker(x, z) {
+  const yT = sampleTerrainY(x, z);
+  const stem = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.022, 0.028, 0.7, 5),
+    new THREE.MeshStandardMaterial({ color: 0x689f38, roughness: 0.85 })
+  );
+  stem.position.set(x, yT + 0.45, z);
+  stem.castShadow = true;
+  scene.add(stem);
+  const head = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.055, 0.055, 0.18, 7),
+    new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 1 })
+  );
+  head.position.set(x, yT + 0.78, z);
+  scene.add(head);
+  const tip = new THREE.Mesh(
+    new THREE.ConeGeometry(0.02, 0.08, 4),
+    new THREE.MeshStandardMaterial({ color: 0x9ccc65 })
+  );
+  tip.position.set(x, yT + 0.92, z);
+  scene.add(tip);
+}
+function _tallGrassMaker(x, z) {
+  const yT = sampleTerrainY(x, z);
+  const bladeMat = new THREE.MeshStandardMaterial({
+    color: Math.random() < 0.5 ? 0x9ccc65 : 0xaed581,
+    side: THREE.DoubleSide, roughness: 0.85,
+  });
+  const cnt = 4 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < cnt; i++) {
+    const blade = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.06, 0.42 + Math.random() * 0.15), bladeMat
+    );
+    blade.position.set(
+      x + (Math.random() - 0.5) * 0.12,
+      yT + 0.21 + (Math.random() - 0.5) * 0.05,
+      z + (Math.random() - 0.5) * 0.12
+    );
+    blade.rotation.y = Math.random() * Math.PI;
+    blade.rotation.z = (Math.random() - 0.5) * 0.4;
+    scene.add(blade);
+  }
+}
+function _flowerClusterMaker(x, z) {
+  const yT = sampleTerrainY(x, z);
+  const palettes = [
+    [0xfff176, 0xfbc02d],
+    [0xef5350, 0xc62828],
+    [0xab47bc, 0x7b1fa2],
+    [0xffffff, 0xeeeeee],
+    [0xff7043, 0xe64a19],
+  ];
+  const palette = palettes[Math.floor(Math.random() * palettes.length)];
+  for (let i = 0; i < 4; i++) {
+    const off = { x: (Math.random() - 0.5) * 0.18, z: (Math.random() - 0.5) * 0.18 };
+    const stem = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.008, 0.008, 0.18, 4),
+      new THREE.MeshStandardMaterial({ color: 0x558b2f })
+    );
+    stem.position.set(x + off.x, yT + 0.18, z + off.z);
+    scene.add(stem);
+    const head = new THREE.Mesh(
+      new THREE.SphereGeometry(0.07, 8, 5),
+      new THREE.MeshStandardMaterial({
+        color: palette[0], emissive: palette[1], emissiveIntensity: 0.5,
+        roughness: 0.55,
+      })
+    );
+    head.position.set(x + off.x, yT + 0.28, z + off.z);
+    head.scale.set(1, 0.35, 1);
+    scene.add(head);
+  }
+}
+function _mossPatchMaker(x, z) {
+  const yT = sampleTerrainY(x, z);
+  const moss = new THREE.Mesh(
+    new THREE.CircleGeometry(0.35 + Math.random() * 0.2, 12),
+    new THREE.MeshStandardMaterial({
+      color: 0x33691e, roughness: 1, side: THREE.DoubleSide,
+    })
+  );
+  moss.rotation.x = -Math.PI / 2;
+  moss.position.set(x, yT + 0.05, z);
+  scene.add(moss);
+}
+
+function buildRiparianStrip(controlPoints, side, baseOffset = 1.5, density = 32) {
+  const v3pts = controlPoints.map(p => new THREE.Vector3(p[0], 0, p[1]));
+  const curve = new THREE.CatmullRomCurve3(v3pts, false, 'centripetal');
+  for (let i = 0; i <= density; i++) {
+    const t = i / density;
+    const p = curve.getPoint(t);
+    const tan = curve.getTangent(t); tan.y = 0; tan.normalize();
+    const normal = new THREE.Vector3(-tan.z, 0, tan.x);
+    for (let k = 0; k < 2; k++) {
+      const off = baseOffset + Math.random() * 1.0;
+      const px = p.x + normal.x * side * off + (Math.random() - 0.5) * 0.3;
+      const pz = p.z + normal.z * side * off + (Math.random() - 0.5) * 0.3;
+      const y = sampleTerrainY(px, pz);
+      if (y < 0.1 || y > 3) continue;
+      const r = Math.random();
+      if      (r < 0.30) _cattailMaker(px, pz);
+      else if (r < 0.62) _tallGrassMaker(px, pz);
+      else if (r < 0.82) _flowerClusterMaker(px, pz);
+      else               _mossPatchMaker(px, pz);
+    }
+  }
+}
+const _ripPath = [
+  [9.5, -1.5], [9.0,  1.2], [8.5,  3.0], [7.0,  1.5], [5.5, -2.0], [4.0,  0.5],
+  [2.5,  3.0], [1.0,  0.5], [-0.5,-2.0], [-2.0, 0.5], [-3.5, 2.8],
+  [-5.0, 0.5], [-6.5,-2.0], [-8.0, 0.0], [-10.0, 1.2], [-12.5,-0.4],
+  [-15.0,-1.0],
+];
+buildRiparianStrip(_ripPath,  1, 1.4, 36);   // north bank
+buildRiparianStrip(_ripPath, -1, 1.4, 36);   // south bank
+
+// ---------- HEADWATER SPRINGS ----------
+// Real streams begin where groundwater discharges at the surface (a "spring"),
+// or where snowmelt / saturated wetlands seep out. Each river origin gets a
+// small stone-rimmed pool, mossy boulders, and a few cattails — hydrologically
+// the correct "first-order stream" headwater look.
+function buildSpring(cx, cz, opts = {}) {
+  const yT = sampleTerrainY(cx, cz);
+  const poolRadius = opts.radius || 0.85;
+  // Pool of water emerging at the surface
+  const pool = new THREE.Mesh(
+    new THREE.CircleGeometry(poolRadius, 22),
+    new THREE.MeshStandardMaterial({
+      color: 0x29b6f6, emissive: 0x0277bd, emissiveIntensity: 0.5,
+      roughness: 0.2, metalness: 0.1, transparent: true, opacity: 0.92,
+    })
+  );
+  pool.rotation.x = -Math.PI / 2;
+  pool.position.set(cx, yT + 0.18, cz);
+  pool.receiveShadow = true;
+  scene.add(pool);
+  // Bright ripple ring suggesting water bubbling up from the spring
+  const ripple = new THREE.Mesh(
+    new THREE.RingGeometry(poolRadius * 0.35, poolRadius * 0.5, 18),
+    new THREE.MeshStandardMaterial({
+      color: 0xb3e5fc, emissive: 0x4fc3f7, emissiveIntensity: 0.8,
+      transparent: true, opacity: 0.85, side: THREE.DoubleSide,
+    })
+  );
+  ripple.rotation.x = -Math.PI / 2;
+  ripple.position.set(cx, yT + 0.19, cz);
+  scene.add(ripple);
+  // Boulder ring framing the pool
+  const stoneColors = [0x607d8b, 0x546e7a, 0x78909c, 0x455a64];
+  const boulderCount = 7;
+  for (let i = 0; i < boulderCount; i++) {
+    const ang = (i / boulderCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
+    const r = poolRadius + 0.1 + Math.random() * 0.15;
+    const size = 0.16 + Math.random() * 0.14;
+    const stone = new THREE.Mesh(
+      new THREE.SphereGeometry(size, 8, 6),
+      new THREE.MeshStandardMaterial({
+        color: stoneColors[Math.floor(Math.random() * stoneColors.length)],
+        roughness: 1, flatShading: true,
+      })
+    );
+    stone.position.set(
+      cx + Math.cos(ang) * r,
+      yT + 0.18 + size * 0.5,
+      cz + Math.sin(ang) * r
+    );
+    stone.scale.set(1.1, 0.7 + Math.random() * 0.2, 1.0);
+    stone.rotation.y = Math.random() * Math.PI;
+    stone.castShadow = true;
+    scene.add(stone);
+  }
+  // Mossy caps on some stones
+  for (let i = 0; i < 4; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const r = poolRadius + 0.1;
+    const moss = new THREE.Mesh(
+      new THREE.SphereGeometry(0.09, 6, 5),
+      new THREE.MeshStandardMaterial({ color: 0x33691e, roughness: 1 })
+    );
+    moss.position.set(
+      cx + Math.cos(ang) * r,
+      yT + 0.30,
+      cz + Math.sin(ang) * r
+    );
+    moss.scale.set(1, 0.4, 1);
+    scene.add(moss);
+  }
+  // 3 cattails at the pool edge — iconic wetland marker
+  for (let i = 0; i < 3; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const r = poolRadius * 0.7 + Math.random() * 0.2;
+    _cattailMaker(cx + Math.cos(ang) * r, cz + Math.sin(ang) * r);
+  }
+  // Wildflowers for color
+  for (let i = 0; i < 2; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const r = poolRadius + 0.3 + Math.random() * 0.3;
+    _flowerClusterMaker(cx + Math.cos(ang) * r, cz + Math.sin(ang) * r);
+  }
+}
+
+// Main river — spring at the foot of the big mountain, just upstream of
+// the main river's first control point (9.5, 0.8).
+buildSpring(10.0, -1.2, { radius: 0.95 });
+// East tributary spring (under the FROM STREAMS arrow at (22, 3))
+// East tributary head spring — co-located with the round pool source at (22, 3)
+// so the boulders/cattails frame the round source instead of sitting beside it.
+buildSpring(22.0, 3.0, { radius: 0.75 });
+// South tributary — saturated wetland seep at its origin
+buildSpring(10.5, -15.0, { radius: 0.85 });
+
+function buildRiparianBuffer() {
+  const mainRiver = [
+    [9.5, -1.5], [9.0, 1.2], [8.5,  3.0], [7.0,  1.5], [5.5, -2.0],
+    [4.0,  0.5], [2.5,  3.0], [1.0,  0.5], [-0.5, -2.0],
+    [-2.0, 0.5], [-3.5, 2.8], [-5.0, 0.5], [-6.5, -2.0],
+    [-8.0, 0.0], [-10.0, 1.2], [-12.5, -0.4], [-15.0, -1.0],
+  ];
+  const eastTributary = [
+    [22, 3], [19, 2.5], [16, 2.0], [13, 1.8], [10, 1.6], [8.5, 1.5], [7, 1.5],
+  ];
+  const southTributary = [
+    [10, -15], [7, -13], [4, -12], [1, -11], [-2, -10], [-5, -8], [-6, -5], [-6.5, -2.0],
+  ];
+
+  const bufferMat = new THREE.MeshStandardMaterial({
+    color: 0x66bb6a,
+    emissive: 0x2e7d32,
+    emissiveIntensity: 0.08,
+    transparent: true,
+    opacity: 0.72,
+    roughness: 0.95,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+  const sedgeMat = new THREE.MeshStandardMaterial({ color: 0x8bc34a, roughness: 0.9 });
+  const shrubMat = new THREE.MeshStandardMaterial({ color: 0x2e7d32, roughness: 0.9, flatShading: true });
+  const wetSoilMat = new THREE.MeshStandardMaterial({
+    color: 0x5d4037,
+    transparent: true,
+    opacity: 0.62,
+    roughness: 1,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+  const rootMat = new THREE.MeshStandardMaterial({ color: 0x4e342e, roughness: 1 });
+  const flowerColors = [0xffeb3b, 0xffffff, 0xff7043, 0xab47bc];
+
+  function plantAt(x, z, side, normal, bankDistance, scale = 1) {
+    const bx = x + normal.x * side * bankDistance;
+    const bz = z + normal.z * side * bankDistance;
+    const y = sampleTerrainY(bx, bz);
+
+    const tuft = new THREE.Mesh(
+      new THREE.ConeGeometry(0.12 * scale, 0.55 * scale, 6),
+      sedgeMat
+    );
+    tuft.position.set(bx, y + 0.28 * scale, bz);
+    tuft.rotation.z = (Math.random() - 0.5) * 0.25;
+    tuft.castShadow = true;
+    scene.add(tuft);
+
+    if (Math.random() < 0.7) {
+      const sx = bx + normal.x * side * (0.45 + Math.random() * 0.35);
+      const sz = bz + normal.z * side * (0.45 + Math.random() * 0.35);
+      const shrub = new THREE.Mesh(
+        new THREE.SphereGeometry(0.17 + Math.random() * 0.10, 9, 7),
+        shrubMat
+      );
+      shrub.position.set(sx, sampleTerrainY(sx, sz) + 0.14, sz);
+      shrub.scale.set(1.15, 0.55, 0.9);
+      shrub.castShadow = true;
+      scene.add(shrub);
+    }
+
+    if (Math.random() < 0.35) {
+      const c = flowerColors[Math.floor(Math.random() * flowerColors.length)];
+      const fx = bx + (Math.random() - 0.5) * 0.7;
+      const fz = bz + (Math.random() - 0.5) * 0.7;
+      const flower = new THREE.Mesh(
+        new THREE.SphereGeometry(0.05, 6, 5),
+        new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.45, roughness: 0.5 })
+      );
+      flower.position.set(fx, sampleTerrainY(fx, fz) + 0.12, fz);
+      scene.add(flower);
+    }
+  }
+
+  function buildBufferForPath(points, waterHalfWidth, bufferWidth, plantStep = 0.08) {
+    const curve = new THREE.CatmullRomCurve3(
+      points.map(([x, z]) => new THREE.Vector3(x, 0, z)),
+      false,
+      'centripetal'
+    );
+    const steps = 90;
+    const positions = [];
+    const uvs = [];
+    let prev = null;
+
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const p = curve.getPoint(t);
+      const tan = curve.getTangent(t); tan.y = 0; tan.normalize();
+      const normal = new THREE.Vector3(-tan.z, 0, tan.x);
+      const sidePts = [];
+      [-1, 1].forEach(side => {
+        const inner = waterHalfWidth + 0.25;
+        const outer = waterHalfWidth + bufferWidth;
+        const ix = p.x + normal.x * side * inner;
+        const iz = p.z + normal.z * side * inner;
+        const ox = p.x + normal.x * side * outer;
+        const oz = p.z + normal.z * side * outer;
+        sidePts.push({
+          inner: new THREE.Vector3(ix, sampleTerrainY(ix, iz) + 0.075, iz),
+          outer: new THREE.Vector3(ox, sampleTerrainY(ox, oz) + 0.08, oz),
+        });
+      });
+
+      if (prev) {
+        for (let s = 0; s < 2; s++) {
+          const a = prev[s].inner, b = prev[s].outer, c = sidePts[s].outer, d = sidePts[s].inner;
+          positions.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z, a.x, a.y, a.z, c.x, c.y, c.z, d.x, d.y, d.z);
+          uvs.push(0, t - 1 / steps, 1, t - 1 / steps, 1, t, 0, t - 1 / steps, 1, t, 0, t);
+        }
+      }
+      prev = sidePts;
+
+      if (i % Math.max(4, Math.floor(plantStep * steps)) === 0) {
+        [-1, 1].forEach(side => {
+          plantAt(p.x, p.z, side, normal, waterHalfWidth + 0.52 + Math.random() * 0.45, 0.8 + Math.random() * 0.45);
+        });
+      }
+
+      if (i % 18 === 8) {
+        [-1, 1].forEach(side => {
+          const wx = p.x + normal.x * side * (waterHalfWidth + 0.16);
+          const wz = p.z + normal.z * side * (waterHalfWidth + 0.16);
+          const wet = new THREE.Mesh(new THREE.CircleGeometry(0.55, 16), wetSoilMat);
+          wet.rotation.x = -Math.PI / 2;
+          wet.scale.set(1.5, 0.65, 1);
+          wet.rotation.z = Math.random() * Math.PI;
+          wet.position.set(wx, sampleTerrainY(wx, wz) + 0.085, wz);
+          scene.add(wet);
+        });
+      }
+
+      if (i % 26 === 12) {
+        const side = Math.random() < 0.5 ? -1 : 1;
+        const rx = p.x + normal.x * side * (waterHalfWidth + 0.65);
+        const rz = p.z + normal.z * side * (waterHalfWidth + 0.65);
+        const root = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 1.0, 6), rootMat);
+        root.position.set(rx, sampleTerrainY(rx, rz) + 0.11, rz);
+        root.rotation.z = Math.PI / 2;
+        root.rotation.y = Math.atan2(tan.x, tan.z) + (Math.random() - 0.5) * 0.7;
+        root.castShadow = true;
+        scene.add(root);
+      }
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    geo.computeVertexNormals();
+    const buffer = new THREE.Mesh(geo, bufferMat);
+    buffer.receiveShadow = true;
+    buffer.renderOrder = 1.5;
+    scene.add(buffer);
+  }
+
+  buildBufferForPath(mainRiver, 0.95, 1.35, 0.07);
+  buildBufferForPath(eastTributary, 0.55, 1.0, 0.09);
+  buildBufferForPath(southTributary, 0.55, 1.0, 0.09);
+}
+buildRiparianBuffer();
+
 // Trees around the pond/channel network
-makeTreeCluster(15, 20, 5, 1.5, 0.5, 0.85);   // north of POND1
-makeTreeCluster(19, 14, 4, 1.3, 0.5, 0.85);   // south between ponds
-makeTreeCluster(26, 18, 4, 1.4, 0.5, 0.85);   // east of POND2
-makeTreeCluster(26, 13, 4, 1.3, 0.5, 0.85);   // south of FROM LAKES
+// (Tree clusters next to the industrial area / dump removed per user request.)
+// makeTreeCluster(15, 20, 5, 1.5, 0.5, 0.85);   // was north of industrial
+// makeTreeCluster(19, 14, 4, 1.3, 0.5, 0.85);   // was south of industrial
+// makeTreeCluster(26, 18, 4, 1.4, 0.5, 0.85);   // was east of industrial dump
+makeTreeCluster(26, 13, 4, 1.3, 0.5, 0.85);   // south of FROM LAKES (kept — well clear of industrial)
+
+// ---------- TREES + GRASSES AROUND THE PONDS ----------
+// Small clusters framing POND1, POND2 and the LAKE source so the
+// nature-based water-storage area reads as a vegetated catchment.
+// Each anchor adds a tight tree cluster plus several grass tufts and a
+// wildflower clump for a mixed riparian look — not a clean tree-only fringe.
+const _pondGreenAnchors = [
+  [13.8, 6.5],   // west of POND1
+  [16.5, 9.6],   // north of POND1
+  [20.4, 9.5],   // north of POND2
+  [23.9, 8.8],   // east of POND2
+  [26.5, 2.0],   // east of LAKE
+  [25.5, -1.4],  // north of LAKE
+];
+_pondGreenAnchors.forEach(([cx, cz]) => {
+  makeTreeCluster(cx, cz, 3, 0.9, 0.45, 0.75);
+  // 6 tall-grass tufts jittered around the cluster
+  for (let i = 0; i < 6; i++) {
+    const ang = (i / 6) * Math.PI * 2 + Math.random() * 0.6;
+    const r = 0.6 + Math.random() * 1.1;
+    _tallGrassMaker(cx + Math.cos(ang) * r, cz + Math.sin(ang) * r);
+  }
+  // 1–2 wildflower clusters for splashes of colour
+  const flowerCount = 1 + Math.floor(Math.random() * 2);
+  for (let i = 0; i < flowerCount; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const r = 0.5 + Math.random() * 0.9;
+    _flowerClusterMaker(cx + Math.cos(ang) * r, cz + Math.sin(ang) * r);
+  }
+});
 
 // Palm cluster along the beach (one row, narrow band along the coastline)
 for (let i = 0; i < 6; i++) {
@@ -1454,14 +2581,15 @@ function buildRoad(fromX, fromZ, toX, toZ, width = 1.6) {
   });
 }
 
-// Main road: village east edge → industrial complex west edge
-buildRoad(-4, 11, 12, 11);
+// Main road: village east edge → spur point, then north to NEW industrial at (15, 17)
+buildRoad(-4, 13.5, 11, 13.5);          // east-west main road, clear of forage grasses
+buildRoad(11, 13.9, 11, 15.5, 1.2);     // short spur connecting to industrial
 // Roads around the coastal city cluster (towers at x≈-12, z≈11-15)
 buildRoad(-14.5, 10, -14.5, 16, 1.3);   // west avenue (between palms and city)
 buildRoad(-9.5,  10, -9.5,  16, 1.3);   // east avenue (between city and village)
 buildRoad(-14.5, 16, -9.5,  16);        // north cross-street capping the loop
-buildRoad(-9.5, 10, -4, 11, 1.35);      // connector from coastal city to main road
-buildRoad(12, 8.8, -9.5, 10, 1.25);     // industrial service road to coastal city
+buildRoad(-9.5, 10, -4, 13.5, 1.35);    // connector from coastal city to main road
+buildRoad(11, 15.5, 15, 15.5, 1.25);     // short industrial entrance from main spur
 buildRoad(-10.8, -9.4, -9.5, 10, 1.25); // coastal city street link to city road
 buildRoad(-7.4, 10.6, -7.2, 7.4, 0.9);  // school access road
 
@@ -1542,8 +2670,8 @@ spawnCar(0x1e88e5, cityLoop, 1.5, 1.6);
 spawnCar(0xfdd835, cityLoop, 1.9, 3.0);
 // One car on the village-to-industrial east-west road (oscillates back and forth)
 const eastWestPath = [
-  { x: -4, z: 11 },
-  { x: 12, z: 11 },
+  { x: -4, z: 13.5 },
+  { x: 12, z: 13.5 },
 ];
 spawnCar(0x43a047, eastWestPath, 2.2, 0);
 
@@ -1556,9 +2684,11 @@ function parkCar(x, z, yaw, color) {
 }
 parkCar(-11.0, 9.6, Math.PI / 2, 0x7b1fa2);
 parkCar(-13.2, 16.4, 0, 0x00897b);
-parkCar(0, 11.6, 0, 0xef6c00);
+parkCar(0, 14.1, 0, 0xef6c00);
 // Short connector: industrial → dam on river
-buildRoad(15, 8.5, 10, 1.5, 1.3);
+// Was (15, 8.5)→(10, 1.5); the old endpoint crossed the east tributary at
+// (Old dam-connector road removed: industrial moved to z=17 and the original
+//  (15, 8.5)→(12.5, 4) endpoints no longer make sense.)
 
 // ---------- BOATS (float in the ocean, gentle bob + drift) ----------
 const boatMeshes = [];
@@ -2886,7 +4016,7 @@ function buildSchoolPupils() {
 buildSchoolPupils();
 
 // Industrial complex on the open north plain, between terrace, ponds, and windmill
-const _indCx = 15, _indCz = 10;
+const _indCx = 15, _indCz = 17;  // moved north — was z=10, now where POND1 used to be
 buildFactory(_indCx, _indCz, 0.3);
 buildStorageTank(_indCx + 3.0, _indCz - 0.5, 0xeceff1);
 buildStorageTank(_indCx + 3.0, _indCz + 1.2, 0xb0bec5);
@@ -2963,7 +4093,7 @@ function buildFence(x1, z1, x2, z2, postHeight = 1.4) {
   return g;
 }
 // Wraps the factory, both tanks, and the warehouse
-buildFence(10.0, 8.4, 19.2, 12.2);
+buildFence(10.0, 15.4, 19.2, 19.2);  // follows industrial complex to z=17 area
 
 // ---------- INDUSTRIAL SMOKE ----------
 // Gray puff particles rising from the two factory smokestacks.
@@ -2985,7 +4115,7 @@ const smokeTex = new THREE.CanvasTexture(smokeCanvas);
 // 0.3-rad yaw rotation around the (15, 10) center).
 function rotatedStack(dx, dz) {
   const c = Math.cos(0.3), s = Math.sin(0.3);
-  return { x: 15 + dx * c - dz * s, z: 10 + dx * s + dz * c };
+  return { x: _indCx + dx * c - dz * s, z: _indCz + dx * s + dz * c };
 }
 const stack1 = rotatedStack(-0.6, 0.7);
 const stack2 = rotatedStack( 0.6, 0.7);
@@ -3062,18 +4192,7 @@ function buildIndustrialDump(cx, cz) {
     scene.add(barrel);
   }
 
-  const pollutedMat = new THREE.MeshStandardMaterial({
-    color: 0x7cb342,
-    emissive: 0x33691e,
-    emissiveIntensity: 0.45,
-    roughness: 0.35,
-    transparent: true,
-    opacity: 0.78,
-  });
-  const runoff = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.05, 5.2), pollutedMat);
-  runoff.position.set(cx + 0.9, y + 0.11, cz + 3.25);
-  runoff.rotation.y = -0.35;
-  scene.add(runoff);
+  // (Polluted-runoff green strip removed per user request.)
 
   const warning = new THREE.Mesh(
     new THREE.ConeGeometry(0.35, 0.55, 3),
@@ -3083,7 +4202,7 @@ function buildIndustrialDump(cx, cz) {
   warning.rotation.y = Math.PI / 6;
   scene.add(warning);
 }
-buildIndustrialDump(20.5, 10.5);
+buildIndustrialDump(20.5, 17.5);
 
 function placeCowAsset(source, { worldX, worldZ, targetH = 1.25, yaw = 0 }) {
   const wrapper = new THREE.Group();
@@ -3451,36 +4570,56 @@ function buildEvapArrow(wx, wz, height = 4) {
 }
 // Clustered in the FRONT-EAST corner. 4-unit z-spacing + alternating shaft
 // height so the labels don't pile on top of each other when projected.
-buildEvapArrow(12, -16, 3.5);  // FROM SOIL — moved to south plain, away from veg
-buildEvapArrow(22, 3,   4.2);  // FROM STREAMS — sits over east tributary head
-buildEvapArrow(25, 7,   3.2);  // FROM VEGETATION
-buildEvapArrow(25, 15,  3.2);  // FROM LAKES
+buildEvapArrow(0.5, 17.0, 4.8); // FROM SOIL — moved to former A/B/C gully area
+buildEvapArrow(22, 3,   6.0);  // FROM STREAMS — taller shaft so label sits higher
+buildEvapArrow(24.5, 0.8, 3.2);  // FROM LAKES — moved north so the lake sits behind the stream head
 buildEvapArrow(0, -10,  3.8);  // FROM FIELDS — over the field_garden model
+buildEvapArrow(22, -13, 5.0); // FROM VEGETATION — over the mountain-back forest cluster
 
 // Source patches beneath each evap arrow — each arrow visually originates
 // from a small representation of the thing it's evaporating from.
 function buildArrowSource(x, z, kind) {
   const yT = sampleTerrainY(x, z);
   if (kind === 'soil') {
+    const isFrontSoil = Math.abs(x - 0.5) < 0.01 && Math.abs(z - 17.0) < 0.01;
     const m = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.5, 1.5, 0.12, 24),
+      isFrontSoil
+        ? new THREE.BoxGeometry(4.6, 0.12, 4.6)
+        : new THREE.CylinderGeometry(1.5, 1.5, 0.12, 24),
       new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 1 })
     );
     m.position.set(x, yT + 0.04, z); m.receiveShadow = true; scene.add(m);
   } else if (kind === 'stream') {
-    const m = new THREE.Mesh(
-      new THREE.PlaneGeometry(3.2, 1.0),
+    // Round source pool so the river's headwater reads as a circular
+    // spring/pond rather than a rectangular patch.
+    const pool = new THREE.Mesh(
+      new THREE.CircleGeometry(1.4, 36),
       new THREE.MeshStandardMaterial({
-        color: 0x29b6f6, emissive: 0x0277bd, emissiveIntensity: 0.35, roughness: 0.3,
+        color: 0x29b6f6, emissive: 0x0277bd, emissiveIntensity: 0.4, roughness: 0.3,
       })
     );
-    m.rotation.x = -Math.PI / 2;
-    m.position.set(x, yT + 0.06, z); scene.add(m);
-  } else if (kind === 'vegetation') {
-    // Two overlapping clusters → much denser grove than a single cluster
-    // could fit given the min-distance reject in makeTreeCluster.
-    makeTreeCluster(x, z, 18, 3.0, 0.55, 0.95);
-    makeTreeCluster(x - 0.8, z + 0.9, 12, 2.0, 0.40, 0.75);
+    pool.rotation.x = -Math.PI / 2;
+    pool.position.set(x, yT + 0.07, z);
+    scene.add(pool);
+    // Lighter ripple ring inside the pool for visual "bubbling up" effect
+    const ripple = new THREE.Mesh(
+      new THREE.RingGeometry(0.55, 0.78, 24),
+      new THREE.MeshStandardMaterial({
+        color: 0xb3e5fc, emissive: 0x4fc3f7, emissiveIntensity: 0.7,
+        transparent: true, opacity: 0.85, side: THREE.DoubleSide,
+      })
+    );
+    ripple.rotation.x = -Math.PI / 2;
+    ripple.position.set(x, yT + 0.08, z);
+    scene.add(ripple);
+    // Sandy/pebbly rim so the pool looks like a contained source
+    const rim = new THREE.Mesh(
+      new THREE.RingGeometry(1.4, 1.62, 36),
+      new THREE.MeshStandardMaterial({ color: 0xc9a663, roughness: 0.95 })
+    );
+    rim.rotation.x = -Math.PI / 2;
+    rim.position.set(x, yT + 0.065, z);
+    scene.add(rim);
   } else if (kind === 'field') {
     const base = new THREE.Mesh(
       new THREE.BoxGeometry(2.8, 0.08, 2.0),
@@ -3496,8 +4635,9 @@ function buildArrowSource(x, z, kind) {
       row.position.set(x, yT + 0.13, z - 0.8 + i * 0.4); scene.add(row);
     }
   } else if (kind === 'lake') {
+    const isEvapLake = Math.abs(x - 24.5) < 0.01 && Math.abs(z - 2.8) < 0.01;
     const m = new THREE.Mesh(
-      new THREE.CircleGeometry(1.3, 28),
+      new THREE.CircleGeometry(isEvapLake ? 1.25 : 1.3, 36),
       new THREE.MeshStandardMaterial({
         color: 0x1e88e5, emissive: 0x1976d2, emissiveIntensity: 0.4,
         roughness: 0.25, metalness: 0,
@@ -3507,18 +4647,29 @@ function buildArrowSource(x, z, kind) {
     m.position.set(x, yT + 0.07, z); scene.add(m);
     // Small "shore" ring
     const ring = new THREE.Mesh(
-      new THREE.RingGeometry(1.3, 1.55, 28),
+      new THREE.RingGeometry(isEvapLake ? 1.25 : 1.3, isEvapLake ? 1.45 : 1.55, 36),
       new THREE.MeshStandardMaterial({ color: 0xc9a663, roughness: 0.95 })
     );
     ring.rotation.x = -Math.PI / 2;
     ring.position.set(x, yT + 0.06, z); scene.add(ring);
   }
 }
-buildArrowSource(12, -16, 'soil');
+buildArrowSource(0.5, 17.0, 'soil');
+// Grass band running from the FROM SOIL arrow east toward the industrial
+// fence (~x=11), so the moist ground reads as a continuous strip rather
+// than a small spot. Random jitter keeps it natural-looking.
+for (let gx = -2.2; gx <= 10.6; gx += 0.55) {
+  for (let lane = 0; lane < 4; lane++) {
+    const gz = 15.4 + lane * 0.95 + (Math.random() - 0.5) * 0.35;
+    const jx = gx + (Math.random() - 0.5) * 0.4;
+    if (jx > 10.6) continue; // don't overlap the industrial fence
+    _tallGrassMaker(jx, gz);
+  }
+}
 // FROM STREAMS source is now the head of the east tributary (see river network)
 buildArrowSource(22, 3,   'stream');
-buildArrowSource(25, 7,   'vegetation');
-buildArrowSource(25, 15,  'lake');
+// Lake moved with the NBS cluster — close to school
+buildArrowSource(24.5, 0.8, 'lake');
 
 // ---------- RICE PADDIES (replaces the field_garden GLTF) ----------
 // Grid of shallow-flooded plots with rice plants, raised earth dikes
@@ -3586,13 +4737,6 @@ function buildRicePaddies(cx, cz, width = 12, depth = 9, cols = 3, rows = 2) {
     dike.receiveShadow = true;
     g.add(dike);
   }
-  // A small wooden footbridge across the central dike — nice detail
-  const bridge = new THREE.Mesh(
-    new THREE.BoxGeometry(1.4, 0.05, dikeW + 0.3),
-    new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 0.9 })
-  );
-  bridge.position.set(0, 0.38, 0);
-  g.add(bridge);
   g.position.set(cx, yT, cz);
   scene.add(g);
   return g;
@@ -3627,99 +4771,44 @@ function buildPond(x, z, radius = 2.0) {
   shore.rotation.x = -Math.PI / 2;
   shore.position.set(x, yT + 0.07, z);
   scene.add(shore);
+
+  const reedMat = new THREE.MeshStandardMaterial({ color: 0x7cb342, roughness: 0.9 });
+  const rockMat = new THREE.MeshStandardMaterial({ color: 0x78909c, roughness: 0.85 });
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2 + Math.random() * 0.25;
+    const r = radius + 0.25 + Math.random() * 0.25;
+    const rx = x + Math.cos(a) * r;
+    const rz = z + Math.sin(a) * r;
+    if (i % 3 === 0) {
+      const rock = new THREE.Mesh(new THREE.SphereGeometry(0.12 + Math.random() * 0.07, 8, 6), rockMat);
+      rock.position.set(rx, sampleTerrainY(rx, rz) + 0.13, rz);
+      rock.scale.set(1.4, 0.45, 1.0);
+      rock.castShadow = true;
+      scene.add(rock);
+    } else {
+      const reed = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.45 + Math.random() * 0.25, 5), reedMat);
+      reed.position.set(rx, sampleTerrainY(rx, rz) + 0.25, rz);
+      reed.rotation.z = (Math.random() - 0.5) * 0.25;
+      scene.add(reed);
+    }
+  }
 }
-buildPond(17, 17, 2.4);  // POND1 — bigger flood-collection pond
-buildPond(22, 19, 1.7);  // POND2 — storage/recharge pond, near FROM LAKES
+buildPond(17, 6.5, 2.4);  // POND1 — close to stream evaporation
+buildPond(22, 7.5, 1.7);  // POND2 — beside stream evaporation, away from dump
 
-// ---------- RECREATIONAL AREA ----------
-function buildBench(x, z, yaw = 0) {
-  const g = new THREE.Group();
-  const woodMat = new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 0.85 });
-  const legMat = new THREE.MeshStandardMaterial({ color: 0x424242, roughness: 0.75, metalness: 0.35 });
-  const seat = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.08, 0.22), woodMat);
-  seat.position.y = 0.35;
-  seat.castShadow = true;
-  g.add(seat);
-  const back = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.08, 0.18), woodMat);
-  back.position.set(0, 0.58, 0.16);
-  back.rotation.x = -0.35;
-  g.add(back);
-  [-0.32, 0.32].forEach(dx => {
-    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 0.35, 8), legMat);
-    leg.position.set(dx, 0.16, -0.05);
-    g.add(leg);
-  });
-  g.position.set(x, sampleTerrainY(x, z) + 0.04, z);
-  g.rotation.y = yaw;
-  scene.add(g);
-  return g;
-}
-
-function buildPicnicTable(x, z, yaw = 0) {
-  const g = new THREE.Group();
-  const woodMat = new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 0.88 });
-  const top = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.08, 0.42), woodMat);
-  top.position.y = 0.42;
-  g.add(top);
-  [-0.42, 0.42].forEach(dx => {
-    const bench = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.06, 0.16), woodMat);
-    bench.position.set(0, 0.28, dx);
-    g.add(bench);
-  });
-  g.position.set(x, sampleTerrainY(x, z) + 0.05, z);
-  g.rotation.y = yaw;
-  scene.add(g);
-  return g;
-}
-
-function buildRecreationalArea() {
-  const pathMat = new THREE.MeshStandardMaterial({ color: 0xd7b46a, roughness: 0.95 });
-  const paths = [
-    { x: 19.6, z: 18.2, w: 6.6, d: 0.32, yaw: 0.25 },
-    { x: 20.0, z: 16.0, w: 5.4, d: 0.28, yaw: -0.55 },
-    { x: 23.1, z: 17.3, w: 3.8, d: 0.28, yaw: Math.PI / 2.7 },
-  ];
-  paths.forEach(p => {
-    const path = new THREE.Mesh(new THREE.BoxGeometry(p.w, 0.035, p.d), pathMat);
-    path.position.set(p.x, sampleTerrainY(p.x, p.z) + 0.10, p.z);
-    path.rotation.y = p.yaw;
-    path.receiveShadow = true;
-    scene.add(path);
-  });
-
-  buildBench(18.7, 19.8, -0.6);
-  buildBench(23.8, 19.3, 0.75);
-  buildBench(20.0, 14.8, Math.PI);
-  buildPicnicTable(21.0, 21.2, 0.3);
-  buildPicnicTable(24.5, 16.3, -0.4);
-
-  const sign = new THREE.Mesh(
-    new THREE.BoxGeometry(1.25, 0.45, 0.08),
-    new THREE.MeshStandardMaterial({ color: 0x2e7d32, roughness: 0.8 })
-  );
-  sign.position.set(18.2, sampleTerrainY(18.2, 15.0) + 0.8, 15.0);
-  sign.rotation.y = -0.25;
-  scene.add(sign);
-
-  [
-    [18.5, 18.8, 0xff7043],
-    [20.7, 20.7, 0x29b6f6],
-    [22.8, 18.2, 0xffca28],
-    [24.0, 16.0, 0x66bb6a],
-    [19.5, 15.2, 0xab47bc],
-  ].forEach(([x, z, color]) => buildCoastalPedestrian(x, z, color));
-}
-buildRecreationalArea();
+// (Recreational area, benches, and picnic tables removed entirely — the
+//  buildBench / buildPicnicTable / buildRecreationalArea function
+//  definitions were deleted so nothing wooden can render near the C arrow.)
 
 // Water channels connecting POND1 ↔ POND2 ↔ FROM LAKES source.
-function buildChannel(fromX, fromZ, toX, toZ, width = 0.55) {
+function buildChannel(fromX, fromZ, toX, toZ, width = 0.32) {
   const dx = toX - fromX, dz = toZ - fromZ;
   const length = Math.sqrt(dx * dx + dz * dz);
   const angle = Math.atan2(dz, dx);
   const midX = (fromX + toX) / 2, midZ = (fromZ + toZ) / 2;
   // Sandy bank under the channel
   const bank = new THREE.Mesh(
-    new THREE.BoxGeometry(length, 0.04, width + 0.35),
+    new THREE.BoxGeometry(length, 0.035, width + 0.18),
     new THREE.MeshStandardMaterial({ color: 0xc9a663, roughness: 0.95 })
   );
   bank.position.set(midX, sampleTerrainY(midX, midZ) + 0.06, midZ);
@@ -3728,7 +4817,7 @@ function buildChannel(fromX, fromZ, toX, toZ, width = 0.55) {
   scene.add(bank);
   // Water on top
   const channel = new THREE.Mesh(
-    new THREE.BoxGeometry(length, 0.05, width),
+    new THREE.BoxGeometry(length, 0.04, width),
     new THREE.MeshStandardMaterial({
       color: 0x29b6f6, emissive: 0x0277bd, emissiveIntensity: 0.4,
       roughness: 0.25, metalness: 0,
@@ -3739,12 +4828,81 @@ function buildChannel(fromX, fromZ, toX, toZ, width = 0.55) {
   scene.add(channel);
 }
 
-// POND1 (17, 17, r=2.4)  →  POND2 (22, 19, r=1.7)
-buildChannel(19.0, 17.7, 20.5, 18.4, 0.55);
-// POND2 (22, 19, r=1.7) →  FROM LAKES small lake (25, 15, r=1.3)
-buildChannel(22.4, 17.5, 23.9, 15.8, 0.5);
-// POND1 (17, 17) →  Agroforestry terrace east edge (12.5, 17) — feeds irrigation
-buildChannel(14.7, 17.0, 12.7, 17.0, 0.45);
+// ---------- POND ↔ RIVER / LAKE CONNECTIONS ----------
+// Clean blue water ribbons that read as continuous flow between the
+// east tributary, both ponds, and the lake source. No sandy bank — the
+// ribbon sits slightly above terrain so it visually masks any gap.
+function buildPlainWaterLink(fromX, fromZ, toX, toZ, width = 0.6) {
+  const dx = toX - fromX, dz = toZ - fromZ;
+  const length = Math.sqrt(dx * dx + dz * dz);
+  const angle = Math.atan2(dz, dx);
+  const midX = (fromX + toX) / 2, midZ = (fromZ + toZ) / 2;
+  const water = new THREE.Mesh(
+    new THREE.BoxGeometry(length, 0.05, width),
+    new THREE.MeshStandardMaterial({
+      color: 0x29b6f6, emissive: 0x0277bd, emissiveIntensity: 0.45,
+      roughness: 0.25, metalness: 0,
+    })
+  );
+  water.position.set(midX, sampleTerrainY(midX, midZ) + 0.13, midZ);
+  water.rotation.y = -angle;
+  scene.add(water);
+  // A small light-blue inlet ring at each end so the connection visibly
+  // "merges" with the pond/river instead of just butting into a shore.
+  [[fromX, fromZ], [toX, toZ]].forEach(([px, pz]) => {
+    const inlet = new THREE.Mesh(
+      new THREE.CircleGeometry(width * 0.75, 18),
+      new THREE.MeshStandardMaterial({
+        color: 0x4fc3f7, emissive: 0x0288d1, emissiveIntensity: 0.4,
+        roughness: 0.25,
+      })
+    );
+    inlet.rotation.x = -Math.PI / 2;
+    inlet.position.set(px, sampleTerrainY(px, pz) + 0.135, pz);
+    scene.add(inlet);
+  });
+}
+// 1) East tributary → POND1 (north inlet, overshoots both ends to merge)
+buildPlainWaterLink(17.0, 1.6, 17.0, 4.6, 0.95);
+// 2) POND1 ↔ POND2 (wide flowing connector between the two ponds)
+buildPlainWaterLink(19.0, 7.0, 20.7, 7.5, 1.10);
+// 3) POND2 → LAKE source (south-east outflow toward the lake)
+buildPlainWaterLink(22.7, 6.5, 24.3, 1.3, 0.85);
+// 4) LAKE source → east tributary head (so the loop closes back to the river)
+buildPlainWaterLink(24.0, 1.2, 22.5, 2.8, 0.75);
+// 5) POND1 west outlet → middle-tier of the TIED RIDGES (agroforestry terrace).
+//    Two segments so the channel meets the terrace edge head-on (x≈8.5)
+//    instead of stopping short in open ground.
+buildPlainWaterLink(14.6, 7.0, 11.5, 7.0, 0.85);  // POND1 → mid plain
+buildPlainWaterLink(11.5, 7.0,  8.5, 7.0, 0.75);  // mid plain → terrace east edge
+// Grass tufts lining both banks of the POND1 ↔ TIED RIDGES channel.
+for (let gx = 8.6; gx <= 14.4; gx += 0.55) {
+  // North bank (above the channel, z < 7)
+  _tallGrassMaker(gx + (Math.random() - 0.5) * 0.2, 6.30 + (Math.random() - 0.5) * 0.2);
+  _tallGrassMaker(gx + (Math.random() - 0.5) * 0.2, 6.55 + (Math.random() - 0.5) * 0.15);
+  // South bank (below the channel, z > 7)
+  _tallGrassMaker(gx + (Math.random() - 0.5) * 0.2, 7.45 + (Math.random() - 0.5) * 0.15);
+  _tallGrassMaker(gx + (Math.random() - 0.5) * 0.2, 7.70 + (Math.random() - 0.5) * 0.2);
+}
+// A few wildflower clumps for colour along the banks
+[[10.0, 6.25], [12.5, 7.75], [13.7, 6.30], [9.5, 7.78]].forEach(([fx, fz]) =>
+  _flowerClusterMaker(fx, fz)
+);
+
+function buildPondRecreationStrip() {
+  const pathMat = new THREE.MeshStandardMaterial({ color: 0xd7b46a, roughness: 0.95 });
+  [
+    { x: 18.8, z: 9.6, w: 5.7, d: 0.24, yaw: 0.08 },
+    { x: 20.6, z: 5.0, w: 4.2, d: 0.22, yaw: -0.12 },
+  ].forEach(p => {
+    const path = new THREE.Mesh(new THREE.BoxGeometry(p.w, 0.03, p.d), pathMat);
+    path.position.set(p.x, sampleTerrainY(p.x, p.z) + 0.11, p.z);
+    path.rotation.y = p.yaw;
+    path.receiveShadow = true;
+    scene.add(path);
+  });
+}
+buildPondRecreationStrip();
 
 // ---------- FISH (animated, swim in circles within water bodies) ----------
 const fishMeshes = [];
@@ -3779,8 +4937,11 @@ function makeFish(centerX, centerZ, waterY, radius = 1.0, color = 0xff7043, scal
   g.scale.setScalar(scale);
   g.userData = {
     cx: centerX, cz: centerZ, y: waterY, radius,
-    speed: 0.4 + Math.random() * 0.5,
+    radiusX: radius,
+    radiusZ: radius * (0.62 + Math.random() * 0.22),
+    speed: 0.18 + Math.random() * 0.22,
     phase: Math.random() * Math.PI * 2,
+    tail,
   };
   scene.add(g);
   fishMeshes.push(g);
@@ -3788,13 +4949,14 @@ function makeFish(centerX, centerZ, waterY, radius = 1.0, color = 0xff7043, scal
 }
 
 // POND1 — fish scale 1.5 so they're clearly visible from default cam
-const _pondY = 0.33;
-makeFish(17, 17, _pondY, 1.5, 0xff5722, 1.5);
-makeFish(17, 17, _pondY, 0.9, 0xff9800, 1.3);
-makeFish(17, 17, _pondY, 1.2, 0xffb74d, 1.4);
+const _pondY1 = sampleTerrainY(17, 6.5) + 0.16;
+const _pondY2 = sampleTerrainY(22, 7.5) + 0.16;
+makeFish(17, 6.5, _pondY1, 1.4, 0xff5722, 1.5);
+makeFish(17, 6.5, _pondY1, 0.9, 0xff9800, 1.3);
+makeFish(17, 6.5, _pondY1, 1.15, 0xffb74d, 1.4);
 // POND2 — 2 fish
-makeFish(22, 19, _pondY, 0.8, 0xef5350, 1.3);
-makeFish(22, 19, _pondY, 0.55, 0xff7043, 1.2);
+makeFish(22, 7.5, _pondY2, 0.75, 0xef5350, 1.3);
+makeFish(22, 7.5, _pondY2, 0.52, 0xff7043, 1.2);
 // Ocean fish — bigger, brighter for visibility
 makeFish(-22, 0,  0.20, 4.0, 0xffeb3b, 2.0);  // yellow
 makeFish(-25, 8,  0.20, 3.0, 0xff5722, 1.8);  // bright orange
@@ -3889,7 +5051,7 @@ function buildAgroforestryTerrace(cx, cz) {
     scene.add(stalk);
   }
 }
-buildAgroforestryTerrace(8, 17);  // shifted south to make room between terrace and industrial
+buildAgroforestryTerrace(4, 7);  // close to school, but not crowding it
 
 // ---------- IRRIGATION CHANNELS ----------
 // Small yellow/orange surface stripes near the field garden, like the
@@ -4035,7 +5197,7 @@ buildTractor(2, -7, 0.4);     // edge of field garden
 buildTractor(8, -13, 2.1);    // second tractor on south plain, facing west
 // Dam: yaw 1.27 rad rotates the 5-wide wall so it spans ACROSS the river
 // (river tangent here is roughly (-0.95, 0, 0.30), so perpendicular yaw ≈ 1.27).
-buildDam(9.5, 0.8, 1.27);    // on the main river upstream
+buildDam(9.2, 0.5, 1.30);    // on the main river upstream (moved with new source)
 buildWindmill(14, 14, 0);    // open grass north of industrial, clear of roads, between POND1 and terrace
 
 // ---------- FLOW ARROWS (Surface runoff direction) ----------
@@ -4128,40 +5290,39 @@ const labelDefs = [
   { id: 'ocean', text: 'Ocean', pos: new THREE.Vector3(-22, 1, -10) },
   { id: 'mountain', text: 'Mountain', pos: new THREE.Vector3(18, 8, 6) },
   { id: 'transp', text: 'Transpiration', pos: new THREE.Vector3(5, 9, 11) },
-  { id: 'supply', text: 'Water Supply', pos: new THREE.Vector3(-6.0, 1.2, 18.0) },
-  { id: 'storm',  text: 'Stormwater',  pos: new THREE.Vector3(-9.4, 1.2, 18.0) },
-  { id: 'erosion',text: 'Soil Erosion',pos: new THREE.Vector3(0.5, 2.5, 17) },
+  { id: 'supply', text: 'Water Supply', pos: new THREE.Vector3(-5.4, 1.35, 13.4) },
+  { id: 'storm',  text: 'Stormwater',  pos: new THREE.Vector3(-9.2, 1.35, 13.4) },
   { id: 'flood',  text: 'Flooding',    pos: new THREE.Vector3(-1, 2.5, -3.5) },
-  { id: 'nbs',    text: '← NBS prevents this', pos: new THREE.Vector3(5, 3.7, 17) },
   { id: 'cloudForm', text: 'Cloud Formation', pos: new THREE.Vector3(0, 22, 4) },
-  { id: 'fromSoil',  text: 'Soil Evaporation',       pos: new THREE.Vector3(12, 4.5, -16) },
-  { id: 'fromStream',text: 'Stream Evaporation',     pos: new THREE.Vector3(22, 5.0,  3) },
-  { id: 'fromVeg',   text: 'Vegetation Evaporation', pos: new THREE.Vector3(25, 4.0,  7) },
-  { id: 'fromLake',  text: 'Lake Evaporation',       pos: new THREE.Vector3(25, 4.0, 15) },
+  { id: 'fromSoil',  text: 'Soil Evaporation',       pos: new THREE.Vector3(0.5, 5.8, 17.0) },
+  { id: 'fromStream',text: 'Stream Evaporation',     pos: new THREE.Vector3(22, 8.8,  3) },
+  { id: 'fromVeg',   text: 'Vegetation Evaporation', pos: new THREE.Vector3(22, 6.0, -13) },
+  { id: 'fromLake',  text: 'Lake Evaporation',       pos: new THREE.Vector3(24.5, 4.2, 0.8) },
   { id: 'fromField', text: 'Field Evaporation',      pos: new THREE.Vector3(0,  4.8, -10) },
   { id: 'beach',     text: 'Beach',           pos: new THREE.Vector3(-16.8, 1.3, -12) },
   { id: 'coastalCity', text: 'Coastal City',   pos: new THREE.Vector3(-11, 3.4, -12.4) },
   { id: 'mall',      text: 'Mall',            pos: new THREE.Vector3(-8.4, 2.9, -13.8) },
   { id: 'school',    text: 'School',          pos: new THREE.Vector3(-7.2, 2.4, 7.4) },
-  { id: 'pond1',     text: 'Pond 1',          pos: new THREE.Vector3(17, 1.5, 17) },
-  { id: 'pond2',     text: 'Pond 2',          pos: new THREE.Vector3(22, 1.5, 19) },
-  { id: 'recreation',text: 'Recreation Area', pos: new THREE.Vector3(21, 2.3, 18) },
-  { id: 'cropForest',text: 'Crop & Forestry', pos: new THREE.Vector3(8, 3.2, 14.6) },
-  { id: 'tiedRidges',text: 'Tied Ridges',     pos: new THREE.Vector3(8, 2.5, 17) },
-  { id: 'industrial',text: 'Industrial Area', pos: new THREE.Vector3(15, 4.5, 10) },
-  { id: 'dump',      text: 'Industrial Dump', pos: new THREE.Vector3(20.5, 2.6, 10.5) },
+  { id: 'pond1',     text: 'Pond 1',          pos: new THREE.Vector3(15.4, 2.0, 5.1) },
+  { id: 'pond2',     text: 'Pond 2',          pos: new THREE.Vector3(21.2, 2.0, 10.2) },
+  { id: 'cropForest',text: 'Crop & Forestry', pos: new THREE.Vector3(4, 3.2, 4.6) },
+  { id: 'tiedRidges',text: 'Tied Ridges',     pos: new THREE.Vector3(4, 2.5, 7) },
+  { id: 'erosion',   text: 'Erosion Gully',   pos: new THREE.Vector3(-3.7, 2.4, 8.0) },
+  { id: 'erosionControl', text: 'Erosion Control', pos: new THREE.Vector3(-1.3, 2.4, 8.0) },
+  { id: 'industrial',text: 'Industrial Area', pos: new THREE.Vector3(15, 4.5, 17) },
+  { id: 'dump',      text: 'Industrial Dump', pos: new THREE.Vector3(20.5, 2.6, 17.5) },
   { id: 'harbour',   text: 'Harbour',         pos: new THREE.Vector3(-18.5, 2.5, 0) },
   { id: 'cityscape', text: 'City',            pos: new THREE.Vector3(-12, 9, 13) },
-  { id: 'deforest',  text: 'Deforestation',   pos: new THREE.Vector3(3, 2.5, 9.5) },
-  { id: 'forage',    text: 'Forage Grasses',  pos: new THREE.Vector3(8, 2.0, 19.4) },
+  { id: 'deforest',  text: 'Deforestation',   pos: new THREE.Vector3(8, 3.0, -8) },
+  { id: 'afforest',  text: 'Afforestation',   pos: new THREE.Vector3(8, 2.0, -15.5) },
+  { id: 'forage',    text: 'Forage Grasses',  pos: new THREE.Vector3(4, 2.0, 9.4) },
   { id: 'evapHeader',text: 'Evaporation',     pos: new THREE.Vector3(8, 10, -3) },
   // Additional water-cycle labels
   { id: 'snowCap',   text: 'Snow Cap',        pos: new THREE.Vector3(18, 11, -6) },
   { id: 'estuary',   text: 'Estuary',         pos: new THREE.Vector3(-15, 2.5, -1) },
-  { id: 'reservoir', text: 'Reservoir / Dam', pos: new THREE.Vector3(9.5, 3.5, 0.8) },
+  { id: 'reservoir', text: 'Reservoir / Dam', pos: new THREE.Vector3(9.2, 3.5, 0.5) },
   { id: 'aquaculture', text: 'Aquaculture',   pos: new THREE.Vector3(3, 2.5, -5) },
   { id: 'riparian',  text: 'Riparian Zone',   pos: new THREE.Vector3(-3.5, 2.0, 5.8) },
-  { id: 'watershed', text: 'Watershed',       pos: new THREE.Vector3(22, 14, 0) },
 ];
 const labelsContainer = document.getElementById('labels');
 labelDefs.forEach(def => {
@@ -4245,16 +5406,16 @@ const tourStops = [
   },
   {
     title: '2. Land Evaporation',
-    text: 'Land also evaporates water — from wet soil, streams, lakes, ponds, and flooded fields like rice paddies. Hot, dry, windy weather pushes this rate up. Together these "blue water" fluxes feed atmospheric moisture between rains.',
-    cam: new THREE.Vector3(30, 16, 28),
-    target: new THREE.Vector3(15, 4, 0),
+    text: 'Land also evaporates water — from wet soil, streams, lakes, ponds, and flooded fields like rice paddies. Each orange arrow rises from a real source: a circular spring pool at the stream head, the lake behind it, soil patches, and the rice paddies. Together these "blue water" fluxes feed atmospheric moisture between rains.',
+    cam: new THREE.Vector3(35, 18, 18),
+    target: new THREE.Vector3(15, 4, 4),
     labels: ['evapHeader', 'fromSoil', 'fromStream', 'fromLake', 'fromField'],
   },
   {
     title: '3. Transpiration',
-    text: 'Plants pull water up through their roots and release it from tiny leaf pores called stomata. Evaporation + transpiration = "evapotranspiration", and forests can return more moisture to the air than the ocean of equal area.',
-    cam: new THREE.Vector3(30, 14, 25),
-    target: new THREE.Vector3(12, 4, 4),
+    text: 'Plants pull water up through their roots and release it from tiny leaf pores called stomata. Evaporation + transpiration = "evapotranspiration", and forests can return more moisture to the air than the ocean of equal area. The Vegetation Evaporation arrow rises from the mountain-back forest.',
+    cam: new THREE.Vector3(30, 14, -2),
+    target: new THREE.Vector3(22, 4, -13),
     labels: ['transp', 'fromVeg'],
   },
   {
@@ -4273,10 +5434,10 @@ const tourStops = [
   },
   {
     title: '6. Surface Runoff & River Network',
-    text: 'Water that doesn\'t soak in becomes runoff. Gravity gathers it into rills, streams, and rivers — a "watershed" is the entire area that drains to one outlet. Meandering rivers carry water, sediment, and nutrients toward the sea.',
-    cam: new THREE.Vector3(20, 14, 35),
-    target: new THREE.Vector3(0, 1, 0),
-    labels: ['runoff', 'watershed', 'riparian'],
+    text: 'Water that doesn\'t soak in becomes runoff. Gravity gathers it into rills, streams, and rivers — a "watershed" is the entire area that drains to one outlet. The main river emerges from a spring high on the mountain slope, joins the east tributary (which starts at its own round source pool), then meanders west to the sea.',
+    cam: new THREE.Vector3(22, 14, 22),
+    target: new THREE.Vector3(5, 1, 0),
+    labels: ['runoff', 'riparian', 'reservoir'],
   },
   {
     title: '7. Infiltration, Percolation & Groundwater',
@@ -4294,17 +5455,17 @@ const tourStops = [
   },
   {
     title: '9. Deforestation & Erosion',
-    text: 'Vegetation slows runoff, holds soil with roots, and recycles water through transpiration. When land is cleared, raindrops detach the topsoil, gullies cut into bare ground, and sediment-laden runoff reaches rivers faster — worsening floods downstream.',
-    cam: new THREE.Vector3(30, 14, 25),
-    target: new THREE.Vector3(4, 4, 12),
-    labels: ['deforest', 'erosion', 'transp'],
+    text: 'Vegetation slows runoff, holds soil with roots, and recycles water through transpiration. When land is cleared, raindrops detach the topsoil, gullies cut into bare ground (see the carved hole next to the terrace), and sediment-laden runoff reaches rivers faster — worsening floods downstream.',
+    cam: new THREE.Vector3(8, 8, 14),
+    target: new THREE.Vector3(-2.5, 1.5, 8),
+    labels: ['deforest', 'erosion', 'afforest'],
   },
   {
     title: '10. Nature-Based Solutions',
-    text: 'Ponds, tied ridges, agroforestry, and ground cover keep water on the land longer. They slow runoff, reduce flood peaks, recharge groundwater, and protect topsoil — turning the same rainfall into a benefit instead of damage.',
-    cam: new THREE.Vector3(20, 14, 35),
-    target: new THREE.Vector3(13, 2, 16),
-    labels: ['pond1', 'pond2', 'tiedRidges', 'cropForest', 'forage', 'nbs'],
+    text: 'Compare the gully to the patch right beside it: contour bunds, mulch strips and grass tufts hold the same rainfall in place. Combined with ponds, tied ridges, agroforestry, and forage cover, NBS slow runoff, recharge groundwater, and protect topsoil — turning the same rainfall into a benefit instead of damage.',
+    cam: new THREE.Vector3(20, 12, 24),
+    target: new THREE.Vector3(8, 2, 7),
+    labels: ['erosionControl', 'pond1', 'pond2', 'tiedRidges', 'cropForest', 'forage'],
   },
   {
     title: '11. Reservoir & Water Supply',
@@ -4375,8 +5536,14 @@ function speakStop() {
   utter.pitch = 1.0;
   utter.volume = 0.95;
   if (preferredVoice) utter.voice = preferredVoice;
+  speechFinished = false;
+  utter.onend = () => { speechFinished = true; };
+  utter.onerror = () => { speechFinished = true; };
   window.speechSynthesis.speak(utter);
 }
+// Tracks whether the current stop's narration has finished, so auto-advance
+// can wait for the voice to read through long stops instead of cutting it off.
+let speechFinished = true;
 function stopSpeech() {
   if (speechAvailable) window.speechSynthesis.cancel();
 }
@@ -4455,11 +5622,27 @@ tourStartBtn.addEventListener('click', openTour);
 tourCloseBtn.addEventListener('click', closeTour);
 tourPrevBtn.addEventListener('click', prevStop);
 tourNextBtn.addEventListener('click', nextStop);
-tourPlayBtn.addEventListener('click', () => {
+function togglePlayPause() {
   tourPlaying = !tourPlaying;
   tourPlayBtn.textContent = tourPlaying ? 'Pause' : 'Play';
   tourPlayBtn.setAttribute('aria-pressed', String(tourPlaying));
-});
+  if (tourPlaying) {
+    // Always start fresh: reset the dwell timer so the user gets the full
+    // 6-second read on the current stop before auto-advancing.
+    tourDwell = 0;
+    // If we're already on the last stop, restart from the beginning.
+    if (tourIndex >= tourStops.length - 1) {
+      setTourStop(0, true);
+    } else {
+      // Re-narrate the current stop on Resume so speech and visuals stay in sync.
+      speakStop();
+    }
+  } else {
+    // Pause should silence the narrator immediately.
+    stopSpeech();
+  }
+}
+tourPlayBtn.addEventListener('click', togglePlayPause);
 if (!speechAvailable) {
   tourVoiceBtn.style.display = 'none';
 } else {
@@ -4487,12 +5670,202 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'ArrowRight') { nextStop(); e.preventDefault(); }
   else if (e.key === 'ArrowLeft') { prevStop(); e.preventDefault(); }
   else if (e.key === ' ') {
-    tourPlaying = !tourPlaying;
-    tourPlayBtn.textContent = tourPlaying ? 'Pause' : 'Play';
-    tourPlayBtn.setAttribute('aria-pressed', String(tourPlaying));
+    togglePlayPause();
     e.preventDefault();
   }
 });
+
+// ---------- WASA INTERVENTIONS PANEL ----------
+// A focused overlay that explains how each Water and Soil Accelerator
+// solution improves a specific stage of the water cycle. Cards fly the
+// camera to the relevant scene element and highlight its label, reusing
+// the same easing as the guided tour.
+const wasaInterventions = [
+  {
+    icon: 'A',
+    title: 'Afforestation & Agroforestry',
+    text: 'When forest is cleared the rainfall cycle collapses — see the stumps and felled trees. Afforestation replants tree cover (saplings in tubes), pumping moisture back into the atmosphere through transpiration and anchoring topsoil. Agroforestry mixes trees with crops on the same plot for the same benefits.',
+    impact: 'Recovers transpiration, recharges groundwater, anchors soil',
+    // Low south-facing view of the flatter recovery patch; keeps the
+    // afforestation saplings in front with deforestation behind them.
+    cam: new THREE.Vector3(16, 6.5, -24),
+    target: new THREE.Vector3(8, 1.2, -14),
+    labels: ['afforest', 'deforest', 'cropForest', 'transp'],
+  },
+  {
+    icon: 'B',
+    title: 'Conservation Agriculture',
+    text: 'Minimum tillage, mulching and cover crops keep soils porous and shaded. Rainfall infiltrates instead of running off, and organic matter triples the soil\'s water-holding capacity.',
+    impact: 'Higher infiltration, lower evaporation loss',
+    cam: new THREE.Vector3(14, 8, 18),
+    target: new THREE.Vector3(4, 2, 7),
+    labels: ['cropForest', 'tiedRidges', 'infil'],
+  },
+  {
+    icon: 'C',
+    title: 'Tied Ridges & Soil Ripping',
+    text: 'Small earthen cross-ridges trap rainfall where it falls; soil rippers break compacted layers so water moves into the root zone. Yields stay up even in erratic-rainfall seasons. Water from Pond 1 flows along a channel into the ridge strips.',
+    impact: 'In-situ rainwater capture, deeper percolation',
+    cam: new THREE.Vector3(12, 7, 16),
+    target: new THREE.Vector3(4, 2, 7),
+    labels: ['tiedRidges', 'pond1', 'infil'],
+  },
+  {
+    icon: 'D',
+    title: 'Erosion Control & Riparian Buffers',
+    text: 'Bare ground is scoured into gullies by raindrops and runoff — see the actual carved hole just west of the terrace. Right beside it, contour bunds, mulch and grass tufts hold the same rainfall in place. Riparian zones along the riverbank further slow flow and trap sediment before it reaches the river.',
+    impact: 'Protected topsoil, reduced sediment in rivers',
+    // Low south-facing view directly over the demo: camera 4 m above and
+    // 3 m south of (-2.5, 8.0) so both the gully (x=-3.7) and the
+    // erosion-control patch (x=-1.3) are framed side-by-side.
+    cam: new THREE.Vector3(-2.5, 4, 12.5),
+    target: new THREE.Vector3(-2.5, 0.8, 8.0),
+    labels: ['erosion', 'erosionControl'],
+  },
+  {
+    icon: 'E',
+    title: 'Rainwater Harvesting & Farm Ponds',
+    text: 'Pond 1 and Pond 2 store wet-season runoff: stream water flows in at the north inlet, the two ponds are linked, an outlet drains east to the lake, and another sends water west to the agroforestry terrace. The system recharges shallow groundwater and creates habitat year-round.',
+    impact: 'Year-round water access, groundwater recharge',
+    cam: new THREE.Vector3(28, 10, 16),
+    target: new THREE.Vector3(20, 2, 7),
+    labels: ['pond1', 'pond2', 'fromStream', 'fromLake'],
+  },
+  {
+    icon: 'F',
+    title: 'Green Infrastructure',
+    text: 'Restored wetlands, vegetative buffers and small check dams flatten flood peaks (see the inundation backwater south of the river) and extend dry-season base flow. The watershed becomes a sponge instead of a fast pipe to the sea.',
+    impact: 'Lower flood peaks, longer base flow',
+    cam: new THREE.Vector3(8, 14, 28),
+    target: new THREE.Vector3(-2, 2, -3),
+    labels: ['flood', 'riparian', 'estuary', 'pond1', 'pond2'],
+  },
+  {
+    icon: 'G',
+    title: 'Community Watershed Governance',
+    text: 'A watershed is the whole catchment that drains to one outlet — from mountain ridge to riverbank to the sea. Local committees decide where ponds and forest patches go, enforce grazing rules, and keep the landscape interventions alive between seasons.',
+    impact: 'Durable, locally-owned landscape stewardship',
+    cam: new THREE.Vector3(38, 30, 32),
+    target: new THREE.Vector3(0, 3, 0),
+    labels: ['mountain', 'riparian', 'runoff', 'ocean', 'school'],
+  },
+  {
+    icon: 'H',
+    title: 'Climate Information Services',
+    text: 'Seasonal forecasts and on-time advisories help farmers plant, irrigate and harvest at the right moment, so more crop is produced per millimetre of rain that falls.',
+    impact: 'More crop per drop, fewer failed seasons',
+    cam: new THREE.Vector3(15, 24, 30),
+    target: new THREE.Vector3(8, 18, 0),
+    labels: ['cloudForm', 'precip', 'cond'],
+  },
+];
+
+// Independent camera flight, used by the WASA panel. Runs only when the
+// guided tour is closed so the two systems never fight over the camera.
+const WASA_MOVE_DURATION = 2.2;
+const wasaFromCam = new THREE.Vector3();
+const wasaToCam = new THREE.Vector3();
+const wasaFromTarget = new THREE.Vector3();
+const wasaToTarget = new THREE.Vector3();
+let wasaFlightT = WASA_MOVE_DURATION + 1; // start "finished"
+
+function wasaFlyTo(stop) {
+  wasaFromCam.copy(camera.position);
+  wasaFromTarget.copy(controls.target);
+  wasaToCam.copy(stop.cam);
+  wasaToTarget.copy(stop.target);
+  wasaFlightT = 0;
+  const highlight = new Set(stop.labels || []);
+  labelDefs.forEach(def => {
+    if (highlight.size === 0) {
+      def.el.classList.remove('tour-dimmed', 'tour-highlighted');
+    } else if (highlight.has(def.id)) {
+      def.el.classList.add('tour-highlighted');
+      def.el.classList.remove('tour-dimmed');
+    } else {
+      def.el.classList.add('tour-dimmed');
+      def.el.classList.remove('tour-highlighted');
+    }
+  });
+}
+
+function updateWasaFlight(dt) {
+  // The tour owns the camera while its panel is open.
+  if (!tourPanel.classList.contains('tour-hidden')) return;
+  if (wasaFlightT >= WASA_MOVE_DURATION) return;
+  wasaFlightT = Math.min(WASA_MOVE_DURATION, wasaFlightT + dt);
+  const k = wasaFlightT / WASA_MOVE_DURATION;
+  const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+  camera.position.lerpVectors(wasaFromCam, wasaToCam, e);
+  controls.target.lerpVectors(wasaFromTarget, wasaToTarget, e);
+  controls.enabled = wasaFlightT >= WASA_MOVE_DURATION;
+}
+
+const wasaPanel = document.getElementById('wasa-panel');
+const wasaOpenBtn = document.getElementById('openWasa');
+const wasaCloseBtn = document.getElementById('wasa-close');
+const wasaCardsContainer = document.getElementById('wasa-cards');
+
+function clearWasaHighlights() {
+  labelDefs.forEach(def => def.el.classList.remove('tour-dimmed', 'tour-highlighted'));
+}
+
+function buildWasaCards() {
+  const frag = document.createDocumentFragment();
+  wasaInterventions.forEach((iv) => {
+    const card = document.createElement('div');
+    card.className = 'wasa-card';
+
+    const head = document.createElement('div');
+    head.className = 'wasa-card-head';
+    const ic = document.createElement('span');
+    ic.className = 'wasa-icon';
+    ic.textContent = iv.icon;
+    const h = document.createElement('h3');
+    h.textContent = iv.title;
+    head.append(ic, h);
+
+    const desc = document.createElement('p');
+    desc.textContent = iv.text;
+
+    const impact = document.createElement('div');
+    impact.className = 'wasa-impact';
+    impact.textContent = iv.impact;
+
+    const btn = document.createElement('button');
+    btn.className = 'wasa-focus-btn';
+    btn.type = 'button';
+    btn.textContent = 'Show in scene';
+    btn.addEventListener('click', () => {
+      // If the guided tour is open, close it so the camera is ours.
+      if (!tourPanel.classList.contains('tour-hidden')) closeTour();
+      wasaFlyTo(iv);
+    });
+
+    card.append(head, desc, impact, btn);
+    frag.appendChild(card);
+  });
+  wasaCardsContainer.replaceChildren(frag);
+}
+buildWasaCards();
+
+function openWasaPanel() {
+  // Close the tour so the two panels don't both grab the camera.
+  if (!tourPanel.classList.contains('tour-hidden')) closeTour();
+  wasaPanel.classList.remove('wasa-hidden');
+  wasaPanel.setAttribute('aria-hidden', 'false');
+}
+function closeWasaPanel() {
+  wasaPanel.classList.add('wasa-hidden');
+  wasaPanel.setAttribute('aria-hidden', 'true');
+  clearWasaHighlights();
+}
+
+wasaOpenBtn.addEventListener('click', () => {
+  if (wasaPanel.classList.contains('wasa-hidden')) openWasaPanel();
+  else closeWasaPanel();
+});
+wasaCloseBtn.addEventListener('click', closeWasaPanel);
 
 // ---------- WELCOME OVERLAY ----------
 const welcome = document.getElementById('welcome');
@@ -4559,7 +5932,12 @@ function updateTour(dt) {
     controls.target.lerpVectors(tourFromTarget, s.target, e);
   } else if (tourPlaying) {
     tourDwell += dt;
-    if (tourDwell >= TOUR_DWELL) {
+    // Hold this stop until BOTH the minimum dwell has passed AND the
+    // voice (if enabled) has finished reading. This stops the tour from
+    // cutting off long narration like "Nature-Based Solutions".
+    const minDwellMet = tourDwell >= TOUR_DWELL;
+    const speechDone = !voiceEnabled || !speechAvailable || speechFinished;
+    if (minDwellMet && speechDone) {
       if (tourIndex < tourStops.length - 1) {
         setTourStop(tourIndex + 1, true);
       } else {
@@ -4572,11 +5950,21 @@ function updateTour(dt) {
 }
 
 // ---------- RESIZE ----------
-window.addEventListener('resize', () => {
+// Debounced resize handler so orientation changes / window drags don't
+// thrash the renderer. Also re-applies pixel ratio in case the user dragged
+// the window between a retina and a standard display.
+let _resizeTimer = null;
+function handleResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
+}
+window.addEventListener('resize', () => {
+  clearTimeout(_resizeTimer);
+  _resizeTimer = setTimeout(handleResize, 80);
 });
+window.addEventListener('orientationchange', handleResize);
 
 // ---------- ANIMATION LOOP ----------
 const clock = new THREE.Clock();
@@ -4741,11 +6129,15 @@ function animate() {
   fishMeshes.forEach(f => {
     const ud = f.userData;
     const angle = t * ud.speed + ud.phase;
-    f.position.x = ud.cx + Math.cos(angle) * ud.radius;
-    f.position.z = ud.cz + Math.sin(angle) * ud.radius;
-    f.position.y = ud.y;
-    // Face direction of travel (tangent to the circle, +X axis of body model)
-    f.rotation.y = -angle - Math.PI / 2;
+    const rx = ud.radiusX || ud.radius;
+    const rz = ud.radiusZ || ud.radius;
+    f.position.x = ud.cx + Math.cos(angle) * rx;
+    f.position.z = ud.cz + Math.sin(angle) * rz;
+    f.position.y = ud.y + Math.sin(t * 1.6 + ud.phase) * 0.025;
+    const dx = -Math.sin(angle) * rx;
+    const dz = Math.cos(angle) * rz;
+    f.rotation.y = -Math.atan2(dz, dx);
+    if (ud.tail) ud.tail.rotation.z = Math.PI / 2 + Math.sin(t * 6 + ud.phase) * 0.25;
   });
 
   // Scroll river water texture (downstream flow) — fast enough to read
@@ -4779,6 +6171,7 @@ function animate() {
   oceanGeo.computeVertexNormals();
 
   updateTour(dt);
+  updateWasaFlight(dt);
   updateCameraReset(dt);
   // Auto-rotate when nothing's happening and the user has been idle
   const tourOpen = !tourPanel.classList.contains('tour-hidden');

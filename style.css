@@ -460,6 +460,188 @@ canvas {
 .tour-buttons button:hover { background: #1565c0; }
 .tour-buttons button:disabled { background: #b0bec5; cursor: not-allowed; }
 
+/* ---------- WASA INTERVENTIONS PANEL ---------- */
+.wasa-open-btn {
+  background: #f57c00 !important;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+.wasa-open-btn:hover { background: #ef6c00 !important; }
+
+#wasa-panel {
+  position: fixed;
+  top: 86px;
+  right: 20px;
+  width: min(380px, calc(100vw - 40px));
+  max-height: calc(100vh - 112px);
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(10px);
+  border-radius: 10px;
+  padding: 18px 20px;
+  box-shadow: 0 12px 32px rgba(13, 71, 161, 0.28);
+  border-top: 4px solid #f57c00;
+  z-index: 25;
+  transform: translateX(0);
+  transition: transform 0.32s cubic-bezier(.22,.61,.36,1), opacity 0.25s;
+}
+#wasa-panel.wasa-hidden {
+  transform: translateX(calc(100% + 30px));
+  opacity: 0;
+  pointer-events: none;
+}
+
+.wasa-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.wasa-eyebrow {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #f57c00;
+  margin-bottom: 2px;
+}
+.wasa-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #0d47a1;
+  line-height: 1.25;
+  margin: 0;
+}
+#wasa-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  font-weight: 700;
+  color: #607d8b;
+  cursor: pointer;
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+#wasa-close:hover { color: #d32f2f; background: rgba(211, 47, 47, 0.08); }
+
+.wasa-intro {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #455a64;
+  margin-bottom: 12px;
+}
+
+.wasa-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  padding-right: 4px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.wasa-card {
+  background: linear-gradient(180deg, #f5f9ff 0%, #ffffff 100%);
+  border: 1px solid rgba(13, 71, 161, 0.12);
+  border-left: 4px solid #1565c0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  transition: transform 0.12s, box-shadow 0.12s, border-left-color 0.12s;
+}
+.wasa-card:hover {
+  transform: translateX(2px);
+  box-shadow: 0 4px 14px rgba(13, 71, 161, 0.15);
+  border-left-color: #f57c00;
+}
+
+.wasa-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.wasa-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #1565c0;
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 4px rgba(13, 71, 161, 0.3);
+}
+.wasa-card h3 {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0d47a1;
+  margin: 0;
+  line-height: 1.25;
+}
+
+.wasa-card p {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: #37474f;
+  margin: 4px 0 8px 0;
+}
+.wasa-card .wasa-impact {
+  font-size: 10.5px;
+  color: #2e7d32;
+  font-weight: 600;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+.wasa-card .wasa-impact::before {
+  content: "↑";
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.wasa-focus-btn {
+  background: #0d47a1;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.wasa-focus-btn:hover { background: #f57c00; }
+
+.wasa-foot {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(13, 71, 161, 0.1);
+  font-size: 10px;
+  color: #78909c;
+  font-style: italic;
+}
+
+@media (max-width: 760px) {
+  #wasa-panel {
+    top: 68px;
+    right: 10px;
+    left: 10px;
+    width: auto;
+    max-height: 70vh;
+    padding: 14px 16px;
+  }
+  .wasa-title { font-size: 15px; }
+}
+
 #labels {
   position: fixed;
   inset: 0;
@@ -600,5 +782,69 @@ canvas {
 
   .tour-buttons button {
     flex: 1 1 30%;
+  }
+}
+
+/* ---------- LARGE DESKTOP (>= 1600px) ---------- */
+@media (min-width: 1600px) {
+  #ui { max-width: 320px; padding: 22px 26px; }
+  #ui h1 { font-size: 24px; }
+  .legend-item { font-size: 14px; }
+  #wasa-panel { width: min(440px, calc(100vw - 40px)); }
+  .wasa-card p { font-size: 12.5px; }
+}
+
+/* ---------- TABLET LANDSCAPE (760 – 1100) ---------- */
+@media (min-width: 760px) and (max-width: 1100px) {
+  #ui { max-width: 240px; padding: 14px 16px; }
+  #ui h1 { font-size: 19px; }
+  .legend-item { font-size: 12px; }
+  #wasa-panel { width: min(340px, calc(100vw - 40px)); padding: 16px 18px; }
+}
+
+/* ---------- SHORT VIEWPORTS / MOBILE LANDSCAPE (height <= 500) ---------- */
+@media (max-height: 500px) {
+  #brand-bar { padding: 6px 14px; }
+  #iwmi-logo, .logo-fallback { height: 28px; }
+  .brand-text h1 { font-size: 13px; }
+  .brand-text p { font-size: 9px; }
+  #ui { top: 56px; max-height: calc(100vh - 70px); padding: 10px 12px; }
+  #ui h1 { font-size: 16px; }
+  .legend { gap: 4px; }
+  .legend-item { font-size: 11px; }
+  .abc-legend { padding: 6px 8px; }
+  #wasa-panel { top: 56px; max-height: calc(100vh - 70px); padding: 12px 14px; }
+  #tour-panel { padding: 10px 12px; }
+  #tour-title { font-size: 16px; margin-bottom: 4px; }
+  #tour-text { font-size: 12px; min-height: 40px; margin-bottom: 8px; }
+}
+
+/* ---------- VERY SMALL PHONES (<= 380px) ---------- */
+@media (max-width: 380px) {
+  #brand-bar { padding: 6px 10px; gap: 8px; }
+  #iwmi-logo, .logo-fallback { height: 30px; }
+  .brand-text h1 { font-size: 13px; }
+  .brand-text p { display: none; }
+  #ui { top: 60px; left: 8px; right: 8px; max-width: none; padding: 10px 12px; }
+  #ui h1 { font-size: 16px; }
+  .legend { grid-template-columns: 1fr; }
+  .controls { gap: 4px; }
+  .controls button { padding: 5px 8px; font-size: 11px; }
+  #tour-panel { padding: 10px 12px; }
+  #tour-title { font-size: 15px; }
+  #tour-text { font-size: 12px; min-height: 50px; }
+  .tour-buttons button { padding: 7px 4px; font-size: 11px; }
+  .label { font-size: 8px; padding: 2px 5px; }
+}
+
+/* ---------- TOUCH DEVICES — make buttons easier to tap ---------- */
+@media (hover: none) and (pointer: coarse) {
+  .controls button,
+  .tour-buttons button,
+  .wasa-focus-btn,
+  #tour-start,
+  #welcome-close,
+  #welcome-tour {
+    min-height: 36px;
   }
 }

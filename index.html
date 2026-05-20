@@ -71,6 +71,7 @@
       <button id="toggleLabels" aria-pressed="true">Labels On</button>
       <button id="toggleRain" aria-pressed="true">Rain On</button>
       <button id="resetCam">Reset Camera</button>
+      <button id="openWasa" class="wasa-open-btn">WASA Solutions</button>
     </div>
     <p class="hint">Tip: press <kbd>T</kbd> to start the tour, <kbd>Left</kbd>/<kbd>Right</kbd> to navigate, <kbd>Space</kbd> to play or pause</p>
     <p class="contact">Contact: <a href="mailto:z.kiala@cgiar.org">z.kiala@cgiar.org</a></p>
@@ -80,6 +81,26 @@
   </div>
 
   <div id="labels"></div>
+
+  <aside id="wasa-panel" class="wasa-hidden" aria-hidden="true" aria-label="WASA interventions">
+    <div class="wasa-header">
+      <div>
+        <span class="wasa-eyebrow">Water and Soil Accelerator</span>
+        <h2 class="wasa-title">How WASA improves the water cycle</h2>
+      </div>
+      <button id="wasa-close" title="Close" aria-label="Close WASA panel">x</button>
+    </div>
+    <p class="wasa-intro">
+      WASA scales eight proven, complementary interventions across Malawi and Zambia &mdash;
+      from on-farm practices to landscape-level green infrastructure &mdash; that capture rainfall,
+      protect soils, and restore the hydrological cycle from plot to landscape. Click <em>Show in scene</em>
+      to fly to each solution.
+    </p>
+    <div id="wasa-cards" class="wasa-cards"></div>
+    <p class="wasa-foot">
+      Source: <em>Water and Soil Accelerator Inception Report (IWMI, 2025)</em>.
+    </p>
+  </aside>
 
   <div id="tour-panel" class="tour-hidden">
     <div class="tour-header">
