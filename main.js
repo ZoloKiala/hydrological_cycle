@@ -4877,8 +4877,10 @@ function buildPond(x, z, radius = 2.0) {
     }
   }
 }
-buildPond(17, 6.5, 1.45); // POND1 — close to stream evaporation
-buildPond(22, 7.5, 0.95); // POND2 — beside stream evaporation, away from dump
+const POND1 = { x: 16.7, z: 6.2, r: 1.45 };
+const POND2 = { x: 21.0, z: 6.1, r: 0.95 };
+buildPond(POND1.x, POND1.z, POND1.r); // POND1 — close to stream evaporation
+buildPond(POND2.x, POND2.z, POND2.r); // POND2 — pulled up into the pond/lake cluster
 
 // (Recreational area, benches, and picnic tables removed entirely — the
 //  buildBench / buildPicnicTable / buildRecreationalArea function
@@ -4946,18 +4948,18 @@ function buildPlainWaterLink(fromX, fromZ, toX, toZ, width = 0.6) {
     scene.add(inlet);
   });
 }
-// 1) East tributary → POND1 (north inlet, overshoots both ends to merge)
-buildPlainWaterLink(17.0, 1.6, 17.0, 4.6, 0.95);
-// 2) POND1 ↔ POND2 (wide flowing connector between the two ponds)
-buildPlainWaterLink(19.0, 7.0, 20.7, 7.5, 1.10);
-// 3) POND2 → LAKE source (south-east outflow toward the lake)
-buildPlainWaterLink(22.7, 6.5, 24.3, 1.3, 0.85);
+// 1) East tributary → POND1 (north inlet, just reaches the smaller pond)
+buildPlainWaterLink(POND1.x, 1.6, POND1.x, POND1.z - POND1.r - 0.2, 0.55);
+// 2) POND1 ↔ POND2 (narrow connector scaled to the smaller ponds)
+buildPlainWaterLink(POND1.x + POND1.r * 0.9, POND1.z, POND2.x - POND2.r * 0.9, POND2.z, 0.55);
+// 3) POND2 → LAKE source (shorter south-east outflow toward the lake)
+buildPlainWaterLink(POND2.x + POND2.r * 0.75, POND2.z - 0.35, 24.0, 1.3, 0.5);
 // 4) LAKE source → east tributary head (so the loop closes back to the river)
-buildPlainWaterLink(24.0, 1.2, 22.5, 2.8, 0.75);
+buildPlainWaterLink(24.0, 1.2, 22.5, 2.8, 0.55);
 // 5) POND1 west outlet → middle-tier of the TIED RIDGES (agroforestry terrace).
 //    Two segments so the channel meets the terrace edge head-on (x≈8.5)
 //    instead of stopping short in open ground.
-buildPlainWaterLink(14.6, 7.0, 11.5, 7.0, 0.85);  // POND1 → mid plain
+buildPlainWaterLink(POND1.x - POND1.r * 0.95, POND1.z + 0.65, 11.5, 7.0, 0.55);  // POND1 → mid plain
 buildPlainWaterLink(11.5, 7.0,  8.5, 7.0, 0.75);  // mid plain → terrace east edge
 // Grass tufts lining both banks of the POND1 ↔ TIED RIDGES channel.
 for (let gx = 8.6; gx <= 14.4; gx += 0.55) {
@@ -5033,15 +5035,15 @@ function makeFish(centerX, centerZ, waterY, radius = 1.0, color = 0xff7043, scal
 }
 
 // POND1 — fish scale 1.5 so they're clearly visible from default cam
-const _pondY1 = sampleTerrainY(17, 6.5) + 0.16;
-const _pondY2 = sampleTerrainY(22, 7.5) + 0.16;
+const _pondY1 = sampleTerrainY(POND1.x, POND1.z) + 0.16;
+const _pondY2 = sampleTerrainY(POND2.x, POND2.z) + 0.16;
 // Pond fish scaled down — at 1.x they looked oversized for the small ponds.
-makeFish(17, 6.5, _pondY1, 0.68, 0xff5722, 0.55);
-makeFish(17, 6.5, _pondY1, 0.44, 0xff9800, 0.45);
-makeFish(17, 6.5, _pondY1, 0.56, 0xffb74d, 0.50);
+makeFish(POND1.x, POND1.z, _pondY1, 0.68, 0xff5722, 0.55);
+makeFish(POND1.x, POND1.z, _pondY1, 0.44, 0xff9800, 0.45);
+makeFish(POND1.x, POND1.z, _pondY1, 0.56, 0xffb74d, 0.50);
 // POND2 — 2 fish (also scaled down)
-makeFish(22, 7.5, _pondY2, 0.30, 0xef5350, 0.45);
-makeFish(22, 7.5, _pondY2, 0.22, 0xff7043, 0.40);
+makeFish(POND2.x, POND2.z, _pondY2, 0.30, 0xef5350, 0.45);
+makeFish(POND2.x, POND2.z, _pondY2, 0.22, 0xff7043, 0.40);
 // Ocean fish — bigger, brighter for visibility
 makeFish(-22, 0,  0.20, 4.0, 0xffeb3b, 2.0);  // yellow
 makeFish(-25, 8,  0.20, 3.0, 0xff5722, 1.8);  // bright orange
@@ -5551,8 +5553,8 @@ const labelDefs = [
   { id: 'coastalCity', text: 'Coastal City',   pos: new THREE.Vector3(-11, 3.4, -12.4) },
   { id: 'mall',      text: 'Mall',            pos: new THREE.Vector3(-8.4, 2.9, -13.8) },
   { id: 'school',    text: 'School',          pos: new THREE.Vector3(-7.2, 2.4, 7.4) },
-  { id: 'pond1',     text: 'Pond 1',          pos: new THREE.Vector3(15.4, 2.0, 5.1) },
-  { id: 'pond2',     text: 'Pond 2',          pos: new THREE.Vector3(21.2, 2.0, 10.2) },
+  { id: 'pond1',     text: 'Pond 1',          pos: new THREE.Vector3(POND1.x - 0.4, 2.0, POND1.z - 0.9) },
+  { id: 'pond2',     text: 'Pond 2',          pos: new THREE.Vector3(POND2.x + 0.2, 2.0, POND2.z + 0.8) },
   { id: 'cropForest',text: 'Crop & Forestry', pos: new THREE.Vector3(4, 3.2, 4.6) },
   { id: 'tiedRidges',text: 'Tied Ridges',     pos: new THREE.Vector3(4, 2.5, 7) },
   { id: 'erosion',   text: 'Erosion Gully',   pos: new THREE.Vector3(12, 4.5, -8) },
