@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>3D Water Cycle</title>
   <link rel="stylesheet" href="style.css" />
   <script type="importmap">
@@ -81,6 +81,36 @@
   </div>
 
   <div id="labels"></div>
+
+  <!-- On-screen camera controls — handy for touch devices, trackpads,
+       and anyone who can't easily use scroll + drag to navigate. -->
+  <div id="cam-controls" aria-label="Camera controls">
+    <div class="cam-group cam-pan" role="group" aria-label="Pan">
+      <span class="cam-group-label">Pan</span>
+      <div class="cam-pan-grid">
+        <button class="cam-btn cam-pan-up" data-action="pan-up" title="Pan up" aria-label="Pan up">▲</button>
+        <button class="cam-btn cam-pan-left" data-action="pan-left" title="Pan left" aria-label="Pan left">◀</button>
+        <button class="cam-btn cam-pan-right" data-action="pan-right" title="Pan right" aria-label="Pan right">▶</button>
+        <button class="cam-btn cam-pan-down" data-action="pan-down" title="Pan down" aria-label="Pan down">▼</button>
+      </div>
+    </div>
+    <div class="cam-group" role="group" aria-label="Rotate">
+      <span class="cam-group-label">Rotate</span>
+      <div class="cam-row">
+        <button class="cam-btn" data-action="rot-left" title="Rotate left" aria-label="Rotate left">↺</button>
+        <button class="cam-btn" data-action="rot-right" title="Rotate right" aria-label="Rotate right">↻</button>
+        <button class="cam-btn" data-action="tilt-up" title="Tilt up" aria-label="Tilt up">⤒</button>
+        <button class="cam-btn" data-action="tilt-down" title="Tilt down" aria-label="Tilt down">⤓</button>
+      </div>
+    </div>
+    <div class="cam-group" role="group" aria-label="Zoom">
+      <span class="cam-group-label">Zoom</span>
+      <div class="cam-row">
+        <button class="cam-btn" data-action="zoom-in" title="Zoom in" aria-label="Zoom in">＋</button>
+        <button class="cam-btn" data-action="zoom-out" title="Zoom out" aria-label="Zoom out">－</button>
+      </div>
+    </div>
+  </div>
 
   <aside id="wasa-panel" class="wasa-hidden" aria-hidden="true" aria-label="WASA interventions">
     <div class="wasa-header">

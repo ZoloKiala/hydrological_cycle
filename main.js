@@ -15,8 +15,11 @@ camera.position.copy(DEFAULT_CAM);
 camera.lookAt(0, 0, 0);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
+function getPixelRatioCap() {
+  return window.innerWidth <= 760 || window.innerHeight <= 500 ? 1.5 : 2;
+}
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, getPixelRatioCap()));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -650,6 +653,10 @@ function makeTreeCluster(cx, cz, count, radius, scaleMin = 0.75, scaleMax = 1.35
     const r = Math.sqrt(Math.random()) * radius; // uniform disk distribution
     const x = cx + Math.cos(angle) * r;
     const z = cz + Math.sin(angle) * r;
+    // Reject trees that would sit off the terrain edge.
+    const margin = 0.7;
+    if (Math.abs(x) > GROUND_W / 2 - margin) continue;
+    if (Math.abs(z) > GROUND_D / 2 - margin) continue;
     const y = sampleTerrainY(x, z);
     if (y < 0.1 || y > 5) continue;                           // skip ocean & high mountain
     if (placed.some(p => Math.hypot(p.x - x, p.z - z) < 1.1)) continue; // spacing
@@ -662,10 +669,10 @@ function makeTreeCluster(cx, cz, count, radius, scaleMin = 0.75, scaleMax = 1.35
 // clusters to fill the landscape.
 // Removed (-7, 2) riverside grove — trees were on the river near the
 // water-supply/stormwater pipes.
-makeTreeCluster(16, -13, 9, 2.8);  // east plain, south of mountain foot
+makeTreeCluster(18, -14, 9, 2.4);  // east plain, pulled east + smaller to clear the gully
 makeTreeCluster(0, -14,  8, 2.8);  // far south plain
 makeTreeCluster(-3, 16,  7, 2.6);  // north plain near town
-makeTreeCluster(10, -2,  8, 2.6);  // mid-east plain
+// Removed the (10, -2) mid-east cluster — it overlapped the relocated erosion-control patch.
 makeTreeCluster(8, -17,  6, 2.4);  // far south-east plain
 makeTreeCluster(-12, 4,  6, 2.2);  // west coast strip
 
@@ -688,6 +695,11 @@ function makeMountainBackForest() {
       const r = Math.sqrt(Math.random()) * cluster.radius;
       const x = cluster.x + Math.cos(angle) * r;
       const z = cluster.z + Math.sin(angle) * r;
+      // Stay safely inside the terrain bounds — otherwise the tree
+      // canopy hangs off the edge of the ground into open sky.
+      const margin = 0.6;
+      if (Math.abs(x) > GROUND_W / 2 - margin) continue;
+      if (Math.abs(z) > GROUND_D / 2 - margin) continue;
       const y = sampleTerrainY(x, z);
       if (y < 0.2 || y > 7.2) continue;
       if (placed.some(p => Math.hypot(p.x - x, p.z - z) < 0.85)) continue;
@@ -701,11 +713,10 @@ function makeMountainBackForest() {
 makeMountainBackForest();
 
 function makeMountainSlopeTrees() {
+  // Four removed: (13.0,-5.5), (14.2,-8.2), (15.6,-2.2), (16.8,-10.8) — all
+  // sat too close to the erosion-gully (12,-8) or erosion-control patch (12,-3),
+  // which together read as cleared/degraded ground.
   const slopeSpots = [
-    { x: 13.0, z: -5.5, scale: 0.55 },
-    { x: 14.2, z: -8.2, scale: 0.62 },
-    { x: 15.6, z: -2.2, scale: 0.50 },
-    { x: 16.8, z: -10.8, scale: 0.48 },
     { x: 18.8, z: -12.2, scale: 0.42 },
     { x: 20.5, z: -10.0, scale: 0.46 },
     { x: 22.0, z: -6.5, scale: 0.52 },
@@ -723,7 +734,8 @@ makeMountainSlopeTrees();
 function buildDeforestation(cx, cz, width = 8, depth = 6,
                             addSurvivingTrees = true,
                             addStumpsAndLogs = true,
-                            carveGullies = false) {
+                            carveGullies = false,
+                            skipEastEdge = false) {
   const yT = sampleTerrainY(cx, cz);
   // Scale all sub-counts down for smaller patches
   const scale = (width * depth) / 48;  // 1.0 for the default 8×6
@@ -930,45 +942,8 @@ function buildDeforestation(cx, cz, width = 8, depth = 6,
         scene.add(stick);
       }
     }
-    // ---- STACKED LOG PILE — cut timber ready for transport ----
-    const pileMat = new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 1 });
-    const pileEndMat = new THREE.MeshStandardMaterial({ color: 0xc9a663, roughness: 0.85 });
-    const pileX = cx + width * 0.28, pileZ = cz - depth * 0.18;
-    const pileYaw = (Math.random() - 0.5) * 0.3;
-    // 3 rows × varying counts for a pyramid stack
-    const pyramid = [4, 3, 2];
-    let pileBaseY = yT + 0.27;
-    pyramid.forEach((cnt, row) => {
-      for (let k = 0; k < cnt; k++) {
-        const offset = (k - (cnt - 1) / 2) * 0.50;
-        const log = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.24, 0.24, 1.8, 12), pileMat
-        );
-        log.position.set(
-          pileX + Math.cos(pileYaw) * offset,
-          pileBaseY + row * 0.48,
-          pileZ - Math.sin(pileYaw) * offset
-        );
-        log.rotation.z = Math.PI / 2;
-        log.rotation.y = pileYaw;
-        log.castShadow = true;
-        scene.add(log);
-        // Cut ends (lighter discs) on both sides of each log
-        [-0.9, 0.9].forEach(end => {
-          const cap = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.235, 0.235, 0.04, 12), pileEndMat
-          );
-          cap.position.set(
-            pileX + Math.cos(pileYaw) * offset + Math.cos(pileYaw + Math.PI / 2) * end,
-            pileBaseY + row * 0.48,
-            pileZ - Math.sin(pileYaw) * offset - Math.sin(pileYaw + Math.PI / 2) * end
-          );
-          cap.rotation.z = Math.PI / 2;
-          cap.rotation.y = pileYaw;
-          scene.add(cap);
-        });
-      }
-    });
+    // (Stacked log pile / cut-timber pyramid removed per user request —
+    //  the pile was visually "spilling" out of the mountain slope.)
     // ---- SAWDUST piles around the larger stumps ----
     const sawdustMat = new THREE.MeshStandardMaterial({ color: 0xe6d49a, roughness: 1 });
     for (let i = 0; i < Math.max(8, Math.floor(14 * scale)); i++) {
@@ -1026,13 +1001,19 @@ function buildDeforestation(cx, cz, width = 8, depth = 6,
     ] : [
       [-hw, 0], [hw, 0], [0, -hd], [0, hd],
     ];
-    edgeOffsets.forEach(o => {
+    const survivingEdges = skipEastEdge
+      ? edgeOffsets.filter(o => o[0] < hw - 0.01)
+      : edgeOffsets;
+    survivingEdges.forEach(o => {
       makeTree(cx + o[0] + (Math.random() - 0.5) * 0.4,
                cz + o[1] + (Math.random() - 0.5) * 0.4,
                0.65 + Math.random() * 0.3);
     });
     const brokenMat = new THREE.MeshStandardMaterial({ color: 0x4e342e, roughness: 1 });
-    const brokenOffsets = [[-hw * 0.9, -hd], [hw * 0.88, hd * 0.8], [0, hd], [hw, -hd * 0.45]];
+    const brokenOffsetsAll = [[-hw * 0.9, -hd], [hw * 0.88, hd * 0.8], [0, hd], [hw, -hd * 0.45]];
+    const brokenOffsets = skipEastEdge
+      ? brokenOffsetsAll.filter(o => o[0] < hw - 0.01)
+      : brokenOffsetsAll;
     brokenOffsets.forEach(o => {
       const trunk = new THREE.Mesh(
         new THREE.CylinderGeometry(0.11, 0.18, 1.2, 7),
@@ -1047,8 +1028,10 @@ function buildDeforestation(cx, cz, width = 8, depth = 6,
     });
   }
 }
-// Pure deforestation: stumps + logs + edge trees, FLAT bare ground (no gullies)
-buildDeforestation(8, -8, 9, 7, true, true, false);
+// Pure deforestation: stumps + logs + edge trees, FLAT bare ground (no gullies).
+// skipEastEdge=true keeps the east side clear so the adjacent erosion gully and
+// erosion-control patch read as bare degraded land, not "edge of a forest".
+buildDeforestation(8, -8, 9, 7, true, true, false, true);
 // (Soil-erosion strip removed per user request.)
 
 // ---------- AFFORESTATION ----------
@@ -1510,82 +1493,141 @@ function buildEvsECDemo(cx, cz) {
 // "without NBS / with NBS" comparison sits right beside its solutions.
 function buildVisibleErosionGullyHole(cx, cz) {
   const yT = sampleTerrainY(cx, cz);
-  const soilMat = new THREE.MeshStandardMaterial({ color: 0x8d5a35, roughness: 1, side: THREE.DoubleSide });
-  const wallMat = new THREE.MeshStandardMaterial({ color: 0x3e2723, roughness: 1, side: THREE.DoubleSide });
-  const bottomMat = new THREE.MeshStandardMaterial({ color: 0x080504, roughness: 1 });
-  const wetMat = new THREE.MeshStandardMaterial({
-    color: 0x5d4037,
-    emissive: 0x2b170f,
-    emissiveIntensity: 0.35,
-    roughness: 0.55,
+  const exposedSoilMat = new THREE.MeshStandardMaterial({
+    color: 0xa86535,
+    emissive: 0x1d0c03,
+    emissiveIntensity: 0.08,
+    roughness: 1,
+    side: THREE.DoubleSide,
+  });
+  const bottomMat = new THREE.MeshStandardMaterial({
+    color: 0x2b1309,
+    emissive: 0x080201,
+    emissiveIntensity: 0.12,
+    roughness: 1,
+  });
+  const deepMat = new THREE.MeshStandardMaterial({
+    color: 0x000000,
+    emissive: 0x000000,
+    emissiveIntensity: 0,
+    roughness: 1,
+  });
+  const wallMat = new THREE.MeshStandardMaterial({
+    color: 0x6b351b,
+    transparent: true,
+    opacity: 0.92,
+    roughness: 1,
+    side: THREE.DoubleSide,
+  });
+  const deepWallMat = new THREE.MeshStandardMaterial({
+    color: 0x210d06,
+    roughness: 1,
+    side: THREE.DoubleSide,
   });
 
-  const pad = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.14, 5.0), soilMat);
-  pad.position.set(cx, yT + 0.07, cz);
-  pad.castShadow = true;
-  pad.receiveShadow = true;
-  scene.add(pad);
+  const dx = 0.65;
+  const dz = 0.65;
+  const tangentX = new THREE.Vector3(dx * 2, sampleTerrainY(cx + dx, cz) - sampleTerrainY(cx - dx, cz), 0);
+  const tangentZ = new THREE.Vector3(0, sampleTerrainY(cx, cz + dz) - sampleTerrainY(cx, cz - dz), dz * 2);
+  const terrainNormal = new THREE.Vector3().crossVectors(tangentZ, tangentX).normalize();
+  if (terrainNormal.y < 0) terrainNormal.negate();
+  const slopeQuat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), terrainNormal);
 
-  const cut = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.08, 4.0), bottomMat);
-  cut.position.set(cx, yT + 0.18, cz);
-  scene.add(cut);
+  const makeSlopeCircle = (radius, material, yOffset, scaleX, scaleZ) => {
+    const geometry = new THREE.CircleGeometry(radius, 64);
+    geometry.rotateX(-Math.PI / 2);
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(cx, yT + yOffset, cz);
+    mesh.quaternion.copy(slopeQuat);
+    mesh.scale.set(scaleX, 1, scaleZ);
+    mesh.receiveShadow = true;
+    scene.add(mesh);
+    return mesh;
+  };
 
-  [-1, 1].forEach(side => {
-    const bank = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.5, 4.15), wallMat);
-    bank.position.set(cx + side * 0.8, yT + 0.28, cz);
-    bank.rotation.z = side * 0.24;
-    bank.castShadow = true;
-    scene.add(bank);
-  });
+  const depth = 1.05;
+  const pitWall = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.08, 0.42, depth, 64, 1, true),
+    deepWallMat
+  );
+  pitWall.quaternion.copy(slopeQuat);
+  pitWall.scale.set(1.25, 1, 1.55);
+  pitWall.position.set(cx, yT + 0.11 - terrainNormal.y * depth * 0.5, cz);
+  pitWall.castShadow = true;
+  pitWall.receiveShadow = true;
+  scene.add(pitWall);
 
-  const mouth = new THREE.Mesh(new THREE.ConeGeometry(1.0, 1.25, 24), bottomMat);
-  mouth.position.set(cx, yT + 0.2, cz + 2.05);
-  mouth.rotation.x = Math.PI / 2;
-  mouth.scale.set(1.45, 0.75, 1);
-  scene.add(mouth);
-
-  const wetLine = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.045, 3.4), wetMat);
-  wetLine.position.set(cx, yT + 0.26, cz + 0.1);
-  scene.add(wetLine);
-
-  for (let i = 0; i < 12; i++) {
-    const rill = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.04, 1.0 + Math.random() * 0.8), bottomMat);
-    rill.position.set(cx - 1.7 + Math.random() * 3.4, yT + 0.18, cz - 1.8 + Math.random() * 2.5);
-    rill.rotation.y = (Math.random() < 0.5 ? -1 : 1) * (0.25 + Math.random() * 0.45);
-    scene.add(rill);
-  }
+  makeSlopeCircle(1.26, exposedSoilMat, 0.088, 1.32, 1.62);
+  makeSlopeCircle(1.04, wallMat, 0.102, 1.2, 1.48);
+  makeSlopeCircle(0.76, bottomMat, 0.122, 1.08, 1.36);
+  makeSlopeCircle(0.38, deepMat, 0.15, 0.9, 1.16);
 }
 function buildVisibleErosionControlPatch(cx, cz) {
   const yT = sampleTerrainY(cx, cz);
   const grassMat = new THREE.MeshStandardMaterial({ color: 0x8bc34a, roughness: 0.85 });
+  const darkGrassMat = new THREE.MeshStandardMaterial({ color: 0x558b2f, roughness: 0.9 });
   const bundMat = new THREE.MeshStandardMaterial({ color: 0x795548, roughness: 1 });
   const mulchMat = new THREE.MeshStandardMaterial({ color: 0xa1887f, roughness: 1 });
-  const pad = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.09, 4.2), grassMat);
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x78909c, roughness: 0.9 });
+  const waterMat = new THREE.MeshStandardMaterial({
+    color: 0x4fc3f7,
+    emissive: 0x0277bd,
+    emissiveIntensity: 0.18,
+    transparent: true,
+    opacity: 0.82,
+    roughness: 0.35,
+  });
+
+  const pad = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.08, 2.8), grassMat);
   pad.position.set(cx, yT + 0.055, cz);
   pad.receiveShadow = true;
   scene.add(pad);
 
   for (let i = 0; i < 4; i++) {
-    const z = cz - 1.45 + i * 0.95;
-    const bund = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.18, 0.22), bundMat);
+    const z = cz - 1.05 + i * 0.68;
+    const bund = new THREE.Mesh(new THREE.BoxGeometry(2.35, 0.15, 0.18), bundMat);
     bund.position.set(cx, yT + 0.18, z);
+    bund.rotation.y = (i % 2 === 0 ? 1 : -1) * 0.04;
     bund.castShadow = true;
     scene.add(bund);
-    const mulch = new THREE.Mesh(new THREE.BoxGeometry(2.65, 0.035, 0.18), mulchMat);
-    mulch.position.set(cx, yT + 0.12, z - 0.22);
+    const mulch = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.03, 0.14), mulchMat);
+    mulch.position.set(cx, yT + 0.115, z - 0.17);
     scene.add(mulch);
+
+    const swale = new THREE.Mesh(new THREE.BoxGeometry(2.05, 0.03, 0.1), waterMat);
+    swale.position.set(cx, yT + 0.13, z + 0.15);
+    scene.add(swale);
   }
 
-  for (let i = 0; i < 18; i++) {
-    const gx = cx - 1.3 + Math.random() * 2.6;
-    const gz = cz - 1.8 + Math.random() * 3.6;
-    const tuft = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.5 + Math.random() * 0.25, 5), grassMat);
+  for (let i = 0; i < 24; i++) {
+    const gx = cx - 1.15 + Math.random() * 2.3;
+    const gz = cz - 1.25 + Math.random() * 2.5;
+    const tuft = new THREE.Mesh(
+      new THREE.ConeGeometry(0.07 + Math.random() * 0.035, 0.42 + Math.random() * 0.28, 5),
+      Math.random() < 0.45 ? darkGrassMat : grassMat
+    );
     tuft.position.set(gx, sampleTerrainY(gx, gz) + 0.28, gz);
     scene.add(tuft);
   }
+
+  for (let row = 0; row < 2; row++) {
+    const z = cz + 0.85 + row * 0.32;
+    for (let i = 0; i < 5; i++) {
+      const stone = new THREE.Mesh(new THREE.SphereGeometry(0.09 + Math.random() * 0.045, 8, 6), stoneMat);
+      stone.position.set(cx - 0.9 + i * 0.45, yT + 0.15, z + (Math.random() - 0.5) * 0.06);
+      stone.scale.set(1.25, 0.55, 1);
+      stone.castShadow = true;
+      scene.add(stone);
+    }
+  }
+
+  makeTree(cx - 0.95, cz - 1.05, 0.35);
 }
-buildVisibleErosionGullyHole(0.2, 8.6);
-buildVisibleErosionControlPatch(2.3, 8.6);
+// Both sit on the deforested mountain slope: gully shows the damage, control
+// patch (contour bunds + mulch + grass tufts) sits just downslope to show
+// what the same rainfall does when the land is protected.
+buildVisibleErosionGullyHole(12, -8);
+buildVisibleErosionControlPatch(12, -4.2);
 
 // ---------- INUNDATION / FLOODING ZONE ----------
 // Shows where river water has overflowed its banks onto the surrounding
@@ -3120,6 +3162,66 @@ makeBird(-19, 11,  11, 5.0, 0.50);
 makeBird(-28, 3,   13, 4.5, 0.60);
 makeBird(22, -12,  15, 4.0, 0.42, 0x6d4c41, 0x8d6e63);
 makeBird(25, -8,   13, 3.5, 0.48, 0x5d4037, 0x795548);
+// Birds over the central landscape (river, ponds, fields, terraces)
+makeBird( 0,  0,    9, 6.0, 0.42, 0xffffff, 0xeceff1);  // over main river
+makeBird(-3,  5,   10, 4.5, 0.55, 0xeceff1, 0xb0bec5);  // over riparian zone
+makeBird( 5, -10,  11, 5.5, 0.38, 0xffffff, 0xcfd8dc);  // over rice paddies
+makeBird(18,  7,    8, 3.5, 0.50, 0xffffff, 0xeceff1);  // over ponds
+makeBird(22,  2,   10, 4.0, 0.45, 0x6d4c41, 0x8d6e63);  // over stream head
+makeBird( 4,  9,    9, 3.0, 0.55, 0xffffff, 0xeceff1);  // over agroforestry terrace
+makeBird(-8, -3,   11, 5.5, 0.40, 0xeceff1, 0xb0bec5);  // over main river bend
+makeBird(15, 14,   12, 4.5, 0.48, 0xffffff, 0xcfd8dc);  // over industrial / windmill area
+makeBird(-12, 10,  10, 4.0, 0.52, 0xffffff, 0xeceff1);  // over city outskirts
+
+// ---------- GROUND BIRDS ----------
+// Small standing birds for the open grass patch between the school
+// riparian zone and the Soil Evaporation area.
+const groundBirds = [];
+function makeGroundBird(x, z, yaw = 0, bodyColor = 0xeceff1, headColor = 0x9e9e9e) {
+  const g = new THREE.Group();
+  const bodyMat = new THREE.MeshStandardMaterial({ color: bodyColor, roughness: 0.7 });
+  const headMat = new THREE.MeshStandardMaterial({ color: headColor, roughness: 0.7 });
+  const beakMat = new THREE.MeshStandardMaterial({ color: 0xffa726, roughness: 0.5 });
+  const legMat  = new THREE.MeshStandardMaterial({ color: 0xff7043, roughness: 0.7 });
+
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), bodyMat);
+  body.scale.set(1, 0.85, 1.4);
+  body.position.y = 0.16;
+  body.castShadow = true;
+  g.add(body);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 8), headMat);
+  head.position.set(0, 0.27, 0.13);
+  head.castShadow = true;
+  g.add(head);
+  const beak = new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.07, 6), beakMat);
+  beak.rotation.x = Math.PI / 2;
+  beak.position.set(0, 0.27, 0.22);
+  g.add(beak);
+  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.10, 6), bodyMat);
+  tail.rotation.x = -Math.PI / 2;
+  tail.position.set(0, 0.18, -0.18);
+  g.add(tail);
+  [-0.04, 0.04].forEach(dx => {
+    const leg = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.012, 0.012, 0.12, 5), legMat
+    );
+    leg.position.set(dx, 0.06, 0);
+    g.add(leg);
+  });
+  g.position.set(x, sampleTerrainY(x, z), z);
+  g.rotation.y = yaw;
+  scene.add(g);
+  g.userData.basePhase = Math.random() * Math.PI * 2;
+  groundBirds.push(g);
+  return g;
+}
+// Small flock between the school and Soil Evaporation
+makeGroundBird(-3.5, 11.0,  0.40, 0xeceff1, 0x9e9e9e);
+makeGroundBird(-2.6, 12.4, -0.85, 0xfafafa, 0x757575);
+makeGroundBird(-4.2, 13.5,  1.20, 0xffe0b2, 0xa1887f);
+makeGroundBird(-1.8, 14.1, -1.80, 0xeceff1, 0x6d4c41);
+makeGroundBird(-3.2, 15.3,  0.20, 0xfff3e0, 0x8d6e63);
+makeGroundBird(-5.0, 12.0,  2.30, 0xeceff1, 0x9e9e9e);
 
 // ---------- SKYSCRAPER CLUSTER ----------
 // Coastal city skyline tucked between the beach and the village.
@@ -4229,25 +4331,7 @@ function placeCowAsset(source, { worldX, worldZ, targetH = 1.25, yaw = 0 }) {
   return wrapper;
 }
 
-// Cow asset herd — use the provided Sketchfab cow model rather than procedural cows.
-gltfLoader.load('models/cow_small/scene.gltf', (gltf) => {
-  console.log('cow loaded, animations:', gltf.animations.length);
-  const cowSource = gltf.scene;
-  cowSource.traverse(o => {
-    if (o.isMesh) {
-      o.castShadow = true;
-      o.receiveShadow = true;
-    }
-  });
-  // Moved out of the aquaculture pond at (3, -5) — clear of water now
-  [
-    { worldX: 11.5, worldZ: -7.5, yaw: 0.8, targetH: 1.35 },
-    { worldX: 13.0, worldZ: -8.5, yaw: 1.4, targetH: 1.15 },
-    { worldX: 7.0,  worldZ: -7.7, yaw: -0.2, targetH: 1.2 },
-    { worldX: 3.6,  worldZ: -8.0, yaw: 2.2, targetH: 1.1 },
-    { worldX: 9.5,  worldZ: -9.0, yaw: -1.0, targetH: 1.18 },
-  ].forEach(cfg => placeCowAsset(cowSource, cfg));
-}, undefined, (err) => console.warn('cow load failed', err));
+// Cow asset helper kept available, but no cows are currently placed in scene.
 
 // ---------- SUN ----------
 const sunGroup = new THREE.Group();
@@ -4793,8 +4877,8 @@ function buildPond(x, z, radius = 2.0) {
     }
   }
 }
-buildPond(17, 6.5, 2.4);  // POND1 — close to stream evaporation
-buildPond(22, 7.5, 1.7);  // POND2 — beside stream evaporation, away from dump
+buildPond(17, 6.5, 1.45); // POND1 — close to stream evaporation
+buildPond(22, 7.5, 0.95); // POND2 — beside stream evaporation, away from dump
 
 // (Recreational area, benches, and picnic tables removed entirely — the
 //  buildBench / buildPicnicTable / buildRecreationalArea function
@@ -4951,12 +5035,13 @@ function makeFish(centerX, centerZ, waterY, radius = 1.0, color = 0xff7043, scal
 // POND1 — fish scale 1.5 so they're clearly visible from default cam
 const _pondY1 = sampleTerrainY(17, 6.5) + 0.16;
 const _pondY2 = sampleTerrainY(22, 7.5) + 0.16;
-makeFish(17, 6.5, _pondY1, 1.4, 0xff5722, 1.5);
-makeFish(17, 6.5, _pondY1, 0.9, 0xff9800, 1.3);
-makeFish(17, 6.5, _pondY1, 1.15, 0xffb74d, 1.4);
-// POND2 — 2 fish
-makeFish(22, 7.5, _pondY2, 0.75, 0xef5350, 1.3);
-makeFish(22, 7.5, _pondY2, 0.52, 0xff7043, 1.2);
+// Pond fish scaled down — at 1.x they looked oversized for the small ponds.
+makeFish(17, 6.5, _pondY1, 0.68, 0xff5722, 0.55);
+makeFish(17, 6.5, _pondY1, 0.44, 0xff9800, 0.45);
+makeFish(17, 6.5, _pondY1, 0.56, 0xffb74d, 0.50);
+// POND2 — 2 fish (also scaled down)
+makeFish(22, 7.5, _pondY2, 0.30, 0xef5350, 0.45);
+makeFish(22, 7.5, _pondY2, 0.22, 0xff7043, 0.40);
 // Ocean fish — bigger, brighter for visibility
 makeFish(-22, 0,  0.20, 4.0, 0xffeb3b, 2.0);  // yellow
 makeFish(-25, 8,  0.20, 3.0, 0xff5722, 1.8);  // bright orange
@@ -5052,6 +5137,169 @@ function buildAgroforestryTerrace(cx, cz) {
   }
 }
 buildAgroforestryTerrace(4, 7);  // close to school, but not crowding it
+
+function buildFieldWorker(x, y, z, yaw = 0, shirtColor = 0x1976d2, tool = 'hoe') {
+  const g = new THREE.Group();
+  const skinMat = new THREE.MeshStandardMaterial({ color: 0xb87545, roughness: 0.85 });
+  const shirtMat = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.85 });
+  const pantsMat = new THREE.MeshStandardMaterial({ color: 0x37474f, roughness: 0.9 });
+  const toolMat = new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.9 });
+  const metalMat = new THREE.MeshStandardMaterial({ color: 0x90a4ae, roughness: 0.55, metalness: 0.25 });
+
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.15, 0.46, 8), shirtMat);
+  body.position.y = 0.55;
+  body.rotation.z = tool === 'hoe' ? -0.12 : 0;
+  body.castShadow = true;
+  g.add(body);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), skinMat);
+  head.position.y = 0.9;
+  head.castShadow = true;
+  g.add(head);
+
+  const hat = new THREE.Mesh(
+    new THREE.ConeGeometry(0.18, 0.14, 10),
+    new THREE.MeshStandardMaterial({ color: 0xfdd835, roughness: 0.85 })
+  );
+  hat.position.y = 1.03;
+  hat.castShadow = true;
+  g.add(hat);
+
+  [-1, 1].forEach(side => {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 0.34, 7), pantsMat);
+    leg.position.set(side * 0.045, 0.18, 0);
+    leg.rotation.z = side * 0.08;
+    leg.castShadow = true;
+    g.add(leg);
+
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.022, 0.36, 6), skinMat);
+    arm.position.set(side * 0.15, 0.58, 0);
+    arm.rotation.z = side * (tool === 'hoe' ? 0.75 : 0.35);
+    arm.castShadow = true;
+    g.add(arm);
+  });
+
+  if (tool === 'basket') {
+    const basket = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.17, 0.13, 0.18, 10),
+      new THREE.MeshStandardMaterial({ color: 0x8d6e63, roughness: 1 })
+    );
+    basket.position.set(0.26, 0.45, 0);
+    basket.rotation.z = Math.PI / 2;
+    basket.castShadow = true;
+    g.add(basket);
+  } else if (tool === 'sack') {
+    const sack = new THREE.Mesh(
+      new THREE.SphereGeometry(0.18, 10, 8),
+      new THREE.MeshStandardMaterial({ color: 0xc49a5a, roughness: 1 })
+    );
+    sack.scale.set(0.9, 1.25, 0.72);
+    sack.position.set(0.26, 0.42, 0);
+    sack.castShadow = true;
+    g.add(sack);
+  } else {
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 1.0, 5), toolMat);
+    handle.position.set(0.28, 0.48, 0);
+    handle.rotation.z = -0.72;
+    handle.castShadow = true;
+    g.add(handle);
+
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.035, 0.12), metalMat);
+    blade.position.set(0.62, 0.08, 0);
+    blade.rotation.z = -0.35;
+    blade.castShadow = true;
+    g.add(blade);
+  }
+
+  g.position.set(x, y, z);
+  g.rotation.y = yaw;
+  g.scale.setScalar(0.82);
+  scene.add(g);
+  return g;
+}
+
+const _terraceBaseY = sampleTerrainY(4, 7);
+const _terraceTierH = 0.45;
+const _tiedRidgeWorkerY = _terraceBaseY + _terraceTierH * 1.5;
+const _forageWorkerY = _terraceBaseY + _terraceTierH * 1.05;
+[
+  { x: 1.2, z: 6.35, y: _tiedRidgeWorkerY, yaw: -0.35, color: 0x8d6e63, tool: 'hoe' },
+  { x: 4.9, z: 7.65, y: _tiedRidgeWorkerY, yaw: 2.65, color: 0x6d4c41, tool: 'hoe' },
+  { x: 2.6, z: 9.25, y: _forageWorkerY, yaw: 0.65, color: 0x78909c, tool: 'basket' },
+  { x: 6.25, z: 9.75, y: _forageWorkerY, yaw: -1.45, color: 0x795548, tool: 'sack' },
+  { x: 3.7, z: 8.95, y: _forageWorkerY, yaw: 1.9, color: 0xa1887f, tool: 'hoe' },
+].forEach(w => buildFieldWorker(w.x, w.y, w.z, w.yaw, w.color, w.tool));
+
+const _ricePaddyWorkerY = sampleTerrainY(-2, -10) + 0.22;
+[
+  { x: -6.9, z: -10.45, yaw: 0.35, color: 0x8d6e63, tool: 'hoe' },
+  { x: -3.9, z: -13.7, yaw: 2.2, color: 0xa1887f, tool: 'basket' },
+  { x: -0.1, z: -10.35, yaw: -0.75, color: 0x6d4c41, tool: 'hoe' },
+  { x: 2.7, z: -6.65, yaw: 1.6, color: 0x78909c, tool: 'sack' },
+  { x: -5.4, z: -6.8, yaw: -2.4, color: 0x795548, tool: 'hoe' },
+].forEach(w => buildFieldWorker(w.x, _ricePaddyWorkerY, w.z, w.yaw, w.color, w.tool));
+
+function buildSmallFieldBird(x, z, scale = 1, yaw = 0, bodyColor = 0x455a64, wingColor = 0x795548) {
+  const g = new THREE.Group();
+  const bodyMat = new THREE.MeshStandardMaterial({ color: bodyColor, roughness: 0.85 });
+  const wingMat = new THREE.MeshStandardMaterial({ color: wingColor, roughness: 0.85 });
+  const beakMat = new THREE.MeshStandardMaterial({ color: 0xffb300, roughness: 0.8 });
+  const legMat = new THREE.MeshStandardMaterial({ color: 0x3e2723, roughness: 0.9 });
+
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 7), bodyMat);
+  body.scale.set(1.3, 0.72, 0.86);
+  body.position.y = 0.25;
+  body.castShadow = true;
+  g.add(body);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), bodyMat);
+  head.position.set(0.14, 0.31, 0);
+  head.castShadow = true;
+  g.add(head);
+
+  const beak = new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.09, 8), beakMat);
+  beak.position.set(0.22, 0.31, 0);
+  beak.rotation.z = -Math.PI / 2;
+  g.add(beak);
+
+  [-1, 1].forEach(side => {
+    const wing = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 5), wingMat);
+    wing.scale.set(0.35, 0.18, 1.05);
+    wing.position.set(-0.01, 0.24, side * 0.085);
+    wing.castShadow = true;
+    g.add(wing);
+
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.16, 5), legMat);
+    leg.position.set(0.02, 0.08, side * 0.035);
+    g.add(leg);
+  });
+
+  g.position.set(x, sampleTerrainY(x, z) + 0.02, z);
+  g.scale.setScalar(scale);
+  g.rotation.y = yaw;
+  scene.add(g);
+  return g;
+}
+
+// Small birds on the grass beside the road shoulder.
+[
+  { x: 0.7, z: 12.35, s: 0.75, yaw: 0.2, body: 0x263238, wing: 0x8d6e63 },
+  { x: 2.4, z: 12.18, s: 0.68, yaw: 1.1, body: 0x5d4037, wing: 0xa1887f },
+  { x: 4.0, z: 12.42, s: 0.72, yaw: -0.5, body: 0x37474f, wing: 0x795548 },
+  { x: 5.8, z: 12.22, s: 0.64, yaw: 2.4, body: 0x6d4c41, wing: 0x3e2723 },
+  { x: 7.4, z: 12.38, s: 0.7, yaw: -1.6, body: 0x455a64, wing: 0x8d6e63 },
+].forEach(b => buildSmallFieldBird(b.x, b.z, b.s, b.yaw, b.body, b.wing));
+
+// More ground birds scattered on open grass near roads and pond paths.
+[
+  { x: -2.2, z: 14.85, s: 0.66, yaw: 0.7, body: 0x4e342e, wing: 0x9e9d24 },
+  { x: -0.6, z: 15.05, s: 0.62, yaw: -1.0, body: 0x37474f, wing: 0x8d6e63 },
+  { x: 1.4, z: 14.82, s: 0.7, yaw: 2.7, body: 0x6d4c41, wing: 0x3e2723 },
+  { x: 3.7, z: 15.08, s: 0.64, yaw: -2.2, body: 0x263238, wing: 0x795548 },
+  { x: 6.4, z: 14.9, s: 0.68, yaw: 1.8, body: 0x455a64, wing: 0xa1887f },
+  { x: 18.4, z: 9.85, s: 0.6, yaw: 0.45, body: 0x5d4037, wing: 0x8d6e63 },
+  { x: 20.0, z: 9.45, s: 0.58, yaw: -0.75, body: 0x37474f, wing: 0x795548 },
+].forEach(b => buildSmallFieldBird(b.x, b.z, b.s, b.yaw, b.body, b.wing));
 
 // ---------- IRRIGATION CHANNELS ----------
 // Small yellow/orange surface stripes near the field garden, like the
@@ -5193,7 +5441,7 @@ function buildWindmill(x, z) {
 }
 
 // Placements
-buildTractor(2, -7, 0.4);     // edge of field garden
+buildTractor(7.2, 11.05, -0.18); // beside the planted terrace, just above the road
 buildTractor(8, -13, 2.1);    // second tractor on south plain, facing west
 // Dam: yaw 1.27 rad rotates the 5-wide wall so it spans ACROSS the river
 // (river tangent here is roughly (-0.95, 0, 0.30), so perpendicular yaw ≈ 1.27).
@@ -5307,8 +5555,8 @@ const labelDefs = [
   { id: 'pond2',     text: 'Pond 2',          pos: new THREE.Vector3(21.2, 2.0, 10.2) },
   { id: 'cropForest',text: 'Crop & Forestry', pos: new THREE.Vector3(4, 3.2, 4.6) },
   { id: 'tiedRidges',text: 'Tied Ridges',     pos: new THREE.Vector3(4, 2.5, 7) },
-  { id: 'erosion',   text: 'Erosion Gully',   pos: new THREE.Vector3(-3.7, 2.4, 8.0) },
-  { id: 'erosionControl', text: 'Erosion Control', pos: new THREE.Vector3(-1.3, 2.4, 8.0) },
+  { id: 'erosion',   text: 'Erosion Gully',   pos: new THREE.Vector3(12, 4.5, -8) },
+  { id: 'erosionControl', text: 'Erosion Control', pos: new THREE.Vector3(12, 3.7, -4.2) },
   { id: 'industrial',text: 'Industrial Area', pos: new THREE.Vector3(15, 4.5, 17) },
   { id: 'dump',      text: 'Industrial Dump', pos: new THREE.Vector3(20.5, 2.6, 17.5) },
   { id: 'harbour',   text: 'Harbour',         pos: new THREE.Vector3(-18.5, 2.5, 0) },
@@ -5455,17 +5703,17 @@ const tourStops = [
   },
   {
     title: '9. Deforestation & Erosion',
-    text: 'Vegetation slows runoff, holds soil with roots, and recycles water through transpiration. When land is cleared, raindrops detach the topsoil, gullies cut into bare ground (see the carved hole next to the terrace), and sediment-laden runoff reaches rivers faster — worsening floods downstream.',
-    cam: new THREE.Vector3(8, 8, 14),
-    target: new THREE.Vector3(-2.5, 1.5, 8),
+    text: 'Vegetation slows runoff, holds soil with roots, and recycles water through transpiration. When the mountain slope is cleared, raindrops detach the topsoil, gullies cut into the bare ground, and sediment-laden runoff reaches rivers faster — worsening floods downstream.',
+    cam: new THREE.Vector3(22, 13, 10),
+    target: new THREE.Vector3(10, 3, -8),
     labels: ['deforest', 'erosion', 'afforest'],
   },
   {
     title: '10. Nature-Based Solutions',
-    text: 'Compare the gully to the patch right beside it: contour bunds, mulch strips and grass tufts hold the same rainfall in place. Combined with ponds, tied ridges, agroforestry, and forage cover, NBS slow runoff, recharge groundwater, and protect topsoil — turning the same rainfall into a benefit instead of damage.',
+    text: 'Ponds, tied ridges, agroforestry, and forage cover hold rainfall on the land instead of letting it run off. NBS slow runoff, recharge groundwater, and protect topsoil — turning the same rainfall into a benefit instead of damage.',
     cam: new THREE.Vector3(20, 12, 24),
     target: new THREE.Vector3(8, 2, 7),
-    labels: ['erosionControl', 'pond1', 'pond2', 'tiedRidges', 'cropForest', 'forage'],
+    labels: ['pond1', 'pond2', 'tiedRidges', 'cropForest', 'forage'],
   },
   {
     title: '11. Reservoir & Water Supply',
@@ -5593,6 +5841,7 @@ function openTour() {
   tourPanel.classList.remove('tour-hidden');
   tourStartBtn.classList.add('tour-hidden');
   setTourStop(0, true);
+  syncUiMode();
 }
 
 function closeTour() {
@@ -5604,6 +5853,7 @@ function closeTour() {
   // Clear any tour highlighting
   labelDefs.forEach(def => def.el.classList.remove('tour-dimmed', 'tour-highlighted'));
   stopSpeech();
+  syncUiMode();
 }
 
 function nextStop() {
@@ -5713,14 +5963,11 @@ const wasaInterventions = [
   {
     icon: 'D',
     title: 'Erosion Control & Riparian Buffers',
-    text: 'Bare ground is scoured into gullies by raindrops and runoff — see the actual carved hole just west of the terrace. Right beside it, contour bunds, mulch and grass tufts hold the same rainfall in place. Riparian zones along the riverbank further slow flow and trap sediment before it reaches the river.',
+    text: 'On the deforested mountain slope, bare ground is scoured into a gully by raindrops and runoff. Just downslope, contour bunds, mulch strips and grass tufts hold the same rainfall in place — the side-by-side contrast WASA scales across watersheds. Riparian zones along the river do the same job at the basin outlet.',
     impact: 'Protected topsoil, reduced sediment in rivers',
-    // Low south-facing view directly over the demo: camera 4 m above and
-    // 3 m south of (-2.5, 8.0) so both the gully (x=-3.7) and the
-    // erosion-control patch (x=-1.3) are framed side-by-side.
-    cam: new THREE.Vector3(-2.5, 4, 12.5),
-    target: new THREE.Vector3(-2.5, 0.8, 8.0),
-    labels: ['erosion', 'erosionControl'],
+    cam: new THREE.Vector3(22, 10, 8),
+    target: new THREE.Vector3(11, 2, -5.5),
+    labels: ['erosion', 'erosionControl', 'riparian'],
   },
   {
     icon: 'E',
@@ -5854,11 +6101,13 @@ function openWasaPanel() {
   if (!tourPanel.classList.contains('tour-hidden')) closeTour();
   wasaPanel.classList.remove('wasa-hidden');
   wasaPanel.setAttribute('aria-hidden', 'false');
+  syncUiMode();
 }
 function closeWasaPanel() {
   wasaPanel.classList.add('wasa-hidden');
   wasaPanel.setAttribute('aria-hidden', 'true');
   clearWasaHighlights();
+  syncUiMode();
 }
 
 wasaOpenBtn.addEventListener('click', () => {
@@ -5871,19 +6120,31 @@ wasaCloseBtn.addEventListener('click', closeWasaPanel);
 const welcome = document.getElementById('welcome');
 const welcomeClose = document.getElementById('welcome-close');
 const welcomeTour = document.getElementById('welcome-tour');
+function syncUiMode() {
+  document.body.classList.toggle('tour-active', !tourPanel.classList.contains('tour-hidden'));
+  document.body.classList.toggle('wasa-active', !wasaPanel.classList.contains('wasa-hidden'));
+  document.body.classList.toggle('welcome-active', !welcome.classList.contains('welcome-hidden'));
+}
+function dismissWelcome() {
+  welcome.classList.add('welcome-hidden');
+  welcome.setAttribute('aria-hidden', 'true');
+  syncUiMode();
+}
 // Only show on first visit this session
 if (sessionStorage.getItem('seenWelcome')) {
   welcome.classList.add('welcome-hidden');
 } else {
   sessionStorage.setItem('seenWelcome', '1');
 }
-welcomeClose.addEventListener('click', () => welcome.classList.add('welcome-hidden'));
+welcome.setAttribute('aria-hidden', welcome.classList.contains('welcome-hidden') ? 'true' : 'false');
+syncUiMode();
+welcomeClose.addEventListener('click', dismissWelcome);
 welcomeTour.addEventListener('click', () => {
-  welcome.classList.add('welcome-hidden');
+  dismissWelcome();
   openTour();
 });
 welcome.addEventListener('click', (e) => {
-  if (e.target === welcome) welcome.classList.add('welcome-hidden');
+  if (e.target === welcome) dismissWelcome();
 });
 
 // ---------- TAB-VISIBILITY HANDLING ----------
@@ -5906,12 +6167,20 @@ setTimeout(() => loader.classList.add('loader-hidden'), 6000);
 // ---------- COLLAPSIBLE SIDE PANEL ----------
 const uiPanel = document.getElementById('ui');
 const uiCollapseBtn = document.getElementById('ui-collapse');
-uiCollapseBtn.addEventListener('click', () => {
-  const collapsed = uiPanel.classList.toggle('ui-collapsed');
+function setUiCollapsed(collapsed) {
+  uiPanel.classList.toggle('ui-collapsed', collapsed);
   uiCollapseBtn.textContent = collapsed ? '+' : '-';
   uiCollapseBtn.title = collapsed ? 'Expand panel' : 'Collapse panel';
   uiCollapseBtn.setAttribute('aria-label', collapsed ? 'Expand legend panel' : 'Collapse legend panel');
   uiCollapseBtn.setAttribute('aria-expanded', String(!collapsed));
+}
+const storedLegendState = sessionStorage.getItem('legendCollapsed');
+const compactViewport = window.matchMedia('(max-width: 760px)').matches;
+setUiCollapsed(storedLegendState ? storedLegendState === '1' : compactViewport);
+uiCollapseBtn.addEventListener('click', () => {
+  const collapsed = !uiPanel.classList.contains('ui-collapsed');
+  setUiCollapsed(collapsed);
+  sessionStorage.setItem('legendCollapsed', collapsed ? '1' : '0');
 });
 
 function updateTour(dt) {
@@ -5949,6 +6218,101 @@ function updateTour(dt) {
   }
 }
 
+// ---------- ON-SCREEN CAMERA CONTROLS ----------
+// Click-and-hold buttons that pan/rotate/zoom the camera. Useful on
+// touch devices and trackpads where scroll-to-zoom or right-click-pan
+// aren't ergonomic. We move both `camera.position` and `controls.target`
+// directly, then call controls.update() so OrbitControls stays in sync.
+const PAN_STEP = 0.55;          // world units per tick
+const ZOOM_STEP = 0.93;         // multiplier per tick (< 1 = zoom in)
+const ROT_STEP = 0.045;         // radians per tick (horizontal orbit)
+const TILT_STEP = 0.03;         // radians per tick (vertical tilt)
+const TICK_INTERVAL = 30;       // ms between ticks while button is held
+
+const _camTmpRight = new THREE.Vector3();
+const _camTmpUp    = new THREE.Vector3();
+const _camTmpDir   = new THREE.Vector3();
+const _camOffset   = new THREE.Vector3();
+const _camSpherical = new THREE.Spherical();
+
+function camPan(dxScreen, dyScreen) {
+  // Build a screen-aligned basis from the camera, ignoring its pitch so
+  // panning stays parallel to the ground (the typical user expectation).
+  camera.getWorldDirection(_camTmpDir);
+  _camTmpDir.y = 0; _camTmpDir.normalize();
+  _camTmpRight.set(_camTmpDir.z, 0, -_camTmpDir.x); // right = forward × up
+  _camTmpUp.set(0, 1, 0);
+  const move = new THREE.Vector3()
+    .addScaledVector(_camTmpRight, dxScreen)
+    .addScaledVector(_camTmpUp, dyScreen);
+  camera.position.add(move);
+  controls.target.add(move);
+  controls.update();
+}
+
+function camZoom(factor) {
+  // Move the camera along the camera→target axis. Respect OrbitControls'
+  // min/max distance so we don't clip through the ground.
+  _camOffset.subVectors(camera.position, controls.target);
+  const dist = _camOffset.length();
+  const newDist = Math.max(controls.minDistance,
+                  Math.min(controls.maxDistance, dist * factor));
+  _camOffset.setLength(newDist);
+  camera.position.copy(controls.target).add(_camOffset);
+  controls.update();
+}
+
+function camOrbit(dTheta, dPhi) {
+  // Spherical coords around the orbit target.
+  _camOffset.subVectors(camera.position, controls.target);
+  _camSpherical.setFromVector3(_camOffset);
+  _camSpherical.theta -= dTheta;
+  _camSpherical.phi   -= dPhi;
+  // Clamp phi the same way OrbitControls does (avoid going past poles).
+  const minPhi = 0.001;
+  const maxPhi = controls.maxPolarAngle || Math.PI / 2.05;
+  _camSpherical.phi = Math.max(minPhi, Math.min(maxPhi, _camSpherical.phi));
+  _camOffset.setFromSpherical(_camSpherical);
+  camera.position.copy(controls.target).add(_camOffset);
+  controls.update();
+}
+
+const CAM_ACTIONS = {
+  'pan-left':   () => camPan(-PAN_STEP, 0),
+  'pan-right':  () => camPan( PAN_STEP, 0),
+  'pan-up':     () => camPan(0,  PAN_STEP),  // moves view "up" (camera+target rise)
+  'pan-down':   () => camPan(0, -PAN_STEP),
+  'zoom-in':    () => camZoom(ZOOM_STEP),
+  'zoom-out':   () => camZoom(1 / ZOOM_STEP),
+  'rot-left':   () => camOrbit(-ROT_STEP, 0),
+  'rot-right':  () => camOrbit( ROT_STEP, 0),
+  'tilt-up':    () => camOrbit(0,  TILT_STEP),
+  'tilt-down':  () => camOrbit(0, -TILT_STEP),
+};
+
+document.querySelectorAll('#cam-controls .cam-btn').forEach(btn => {
+  const action = btn.dataset.action;
+  const fn = CAM_ACTIONS[action];
+  if (!fn) return;
+  let timer = null;
+  const start = (e) => {
+    e.preventDefault();
+    lastInteract = performance.now();   // wake from idle auto-rotate
+    fn();
+    timer = setInterval(fn, TICK_INTERVAL);
+  };
+  const stop = () => {
+    if (timer) { clearInterval(timer); timer = null; }
+  };
+  btn.addEventListener('pointerdown',  start);
+  btn.addEventListener('pointerup',    stop);
+  btn.addEventListener('pointerleave', stop);
+  btn.addEventListener('pointercancel', stop);
+  // Fallback for browsers without Pointer Events
+  btn.addEventListener('touchend',     stop);
+  btn.addEventListener('mouseleave',   stop);
+});
+
 // ---------- RESIZE ----------
 // Debounced resize handler so orientation changes / window drags don't
 // thrash the renderer. Also re-applies pixel ratio in case the user dragged
@@ -5957,7 +6321,7 @@ let _resizeTimer = null;
 function handleResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, getPixelRatioCap()));
   renderer.setSize(window.innerWidth, window.innerHeight);
 }
 window.addEventListener('resize', () => {
@@ -6093,6 +6457,18 @@ function animate() {
 
   // Spin windmill blades
   windmillBlades.forEach(h => { h.rotation.z = t * 1.2; });
+
+  // Ground birds: subtle pecking bob — most of the time they stand still,
+  // then dip the head briefly so they read as alive without being noisy.
+  groundBirds.forEach(b => {
+    const phase = (t * 0.9 + b.userData.basePhase) % (Math.PI * 2);
+    const peck = phase < 0.6 ? Math.sin(phase / 0.6 * Math.PI) * 0.18 : 0;
+    b.rotation.x = peck;
+    // Occasional small turn so they don't all face the same way forever
+    b.rotation.y = b.userData.baseYaw === undefined
+      ? (b.userData.baseYaw = b.rotation.y)
+      : b.userData.baseYaw + Math.sin(t * 0.3 + b.userData.basePhase) * 0.25;
+  });
 
   // Gentle bob + yaw sway for boats
   boatMeshes.forEach(b => {

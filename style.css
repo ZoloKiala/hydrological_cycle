@@ -21,6 +21,15 @@ canvas {
   display: block;
 }
 
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --edge-gap: 20px;
+  --mobile-edge-gap: 10px;
+}
+
 #brand-bar {
   position: fixed;
   top: 0;
@@ -29,7 +38,7 @@ canvas {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 10px 24px;
+  padding: calc(10px + var(--safe-top)) calc(24px + var(--safe-right)) 10px calc(24px + var(--safe-left));
   /* IWMI signature blue — the white logo reads cleanly on top */
   background: linear-gradient(135deg, #0d47a1 0%, #1565c0 50%, #1976d2 100%);
   border-bottom: 3px solid #f57c00;
@@ -75,17 +84,19 @@ canvas {
 
 #ui {
   position: fixed;
-  top: 86px;
-  left: 20px;
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(8px);
-  border-radius: 8px;
-  padding: 18px 22px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  max-width: 280px;
-  max-height: calc(100vh - 112px);
+  top: calc(86px + var(--safe-top));
+  left: calc(var(--edge-gap) + var(--safe-left));
+  background: rgba(248, 252, 255, 0.92);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(13, 71, 161, 0.14);
+  border-radius: 10px;
+  padding: 14px 16px;
+  box-shadow: 0 12px 30px rgba(13, 71, 161, 0.18), 0 2px 8px rgba(0, 0, 0, 0.08);
+  max-width: 300px;
+  max-height: calc(100dvh - 112px - var(--safe-top) - var(--safe-bottom));
   overflow: auto;
   z-index: 10;
+  transition: opacity 0.22s, transform 0.22s, box-shadow 0.22s;
 }
 
 #ui h1 {
@@ -102,8 +113,8 @@ canvas {
 }
 
 .legend {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 6px;
   margin-bottom: 14px;
 }
@@ -111,8 +122,15 @@ canvas {
 .legend-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
+  gap: 7px;
+  min-width: 0;
+  min-height: 30px;
+  padding: 5px 7px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(13, 71, 161, 0.08);
+  border-radius: 7px;
+  font-size: 11.5px;
+  line-height: 1.15;
   color: #37474f;
 }
 
@@ -165,8 +183,8 @@ canvas {
 }
 
 .controls {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 6px;
   margin-bottom: 10px;
 }
@@ -176,14 +194,27 @@ canvas {
   color: white;
   border: none;
   border-radius: 6px;
-  padding: 6px 10px;
-  font-size: 12px;
+  min-height: 32px;
+  padding: 6px 8px;
+  font-size: 11.5px;
+  font-weight: 700;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background 0.2s, transform 0.08s, box-shadow 0.12s;
+  box-shadow: 0 2px 6px rgba(13, 71, 161, 0.18);
 }
 
 .controls button:hover {
   background: #1565c0;
+  box-shadow: 0 3px 9px rgba(13, 71, 161, 0.24);
+}
+
+.controls button:active {
+  transform: translateY(1px);
+}
+
+.controls button:focus-visible {
+  outline: 3px solid rgba(245, 124, 0, 0.4);
+  outline-offset: 2px;
 }
 
 .controls button[aria-pressed="false"] {
@@ -194,6 +225,7 @@ canvas {
   font-size: 11px;
   color: #78909c;
   font-style: italic;
+  line-height: 1.4;
 }
 
 .contact {
@@ -234,8 +266,8 @@ canvas {
 
 #tour-start {
   position: fixed;
-  right: 20px;
-  bottom: 20px;
+  right: calc(var(--edge-gap) + var(--safe-right));
+  bottom: calc(var(--edge-gap) + var(--safe-bottom));
   background: #0d47a1;
   color: white;
   border: none;
@@ -256,6 +288,26 @@ canvas {
 }
 #tour-start.tour-hidden { display: none; }
 
+body.welcome-active #brand-bar,
+body.welcome-active #ui,
+body.welcome-active #cam-controls,
+body.welcome-active #tour-start {
+  opacity: 0;
+  pointer-events: none;
+}
+
+body.tour-active #cam-controls,
+body.wasa-active #cam-controls {
+  opacity: 0.2;
+  pointer-events: none;
+  transform: translateY(8px);
+}
+
+body.wasa-active #tour-start {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
 @keyframes tour-pulse {
   0%, 100% { box-shadow: 0 6px 18px rgba(13, 71, 161, 0.45), 0 0 0 0 rgba(245, 124, 0, 0.55); }
   50%      { box-shadow: 0 6px 18px rgba(13, 71, 161, 0.45), 0 0 0 14px rgba(245, 124, 0, 0); }
@@ -265,6 +317,7 @@ canvas {
 #welcome {
   position: fixed;
   inset: 0;
+  padding: calc(16px + var(--safe-top)) calc(16px + var(--safe-right)) calc(16px + var(--safe-bottom)) calc(16px + var(--safe-left));
   background: rgba(13, 71, 161, 0.4);
   backdrop-filter: blur(4px);
   display: flex;
@@ -278,7 +331,9 @@ canvas {
   background: white;
   border-radius: 8px;
   padding: 28px 32px;
-  max-width: 440px;
+  width: min(440px, 100%);
+  max-height: calc(100dvh - 32px - var(--safe-top) - var(--safe-bottom));
+  overflow: auto;
   margin: 0 16px;
   box-shadow: 0 20px 50px rgba(0,0,0,0.35);
   text-align: center;
@@ -385,9 +440,11 @@ canvas {
 
 #tour-panel {
   position: fixed;
-  right: 20px;
-  bottom: 20px;
+  right: calc(var(--edge-gap) + var(--safe-right));
+  bottom: calc(var(--edge-gap) + var(--safe-bottom));
   width: min(320px, calc(100vw - 40px));
+  max-height: calc(100dvh - 112px - var(--safe-top) - var(--safe-bottom));
+  overflow-y: auto;
   background: rgba(255,255,255,0.95);
   backdrop-filter: blur(8px);
   border-radius: 8px;
@@ -470,10 +527,10 @@ canvas {
 
 #wasa-panel {
   position: fixed;
-  top: 86px;
-  right: 20px;
+  top: calc(86px + var(--safe-top));
+  right: calc(var(--edge-gap) + var(--safe-right));
   width: min(380px, calc(100vw - 40px));
-  max-height: calc(100vh - 112px);
+  max-height: calc(100dvh - 112px - var(--safe-top) - var(--safe-bottom));
   display: flex;
   flex-direction: column;
   background: rgba(255, 255, 255, 0.96);
@@ -632,14 +689,136 @@ canvas {
 
 @media (max-width: 760px) {
   #wasa-panel {
-    top: 68px;
-    right: 10px;
-    left: 10px;
+    top: calc(68px + var(--safe-top));
+    right: calc(var(--mobile-edge-gap) + var(--safe-right));
+    left: calc(var(--mobile-edge-gap) + var(--safe-left));
     width: auto;
-    max-height: 70vh;
+    max-height: calc(70dvh - var(--safe-top));
     padding: 14px 16px;
   }
   .wasa-title { font-size: 15px; }
+}
+
+/* ---------- CAMERA CONTROL CLUSTER ---------- */
+#cam-controls {
+  position: fixed;
+  left: calc(16px + var(--safe-left));
+  bottom: calc(16px + var(--safe-bottom));
+  z-index: 25;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  background: rgba(248, 252, 255, 0.94);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(13, 71, 161, 0.14);
+  border-radius: 12px;
+  padding: 10px;
+  max-width: calc(100vw - 32px - var(--safe-left) - var(--safe-right));
+  box-shadow: 0 12px 30px rgba(13, 71, 161, 0.22), 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: opacity 0.22s, transform 0.22s;
+  user-select: none;
+}
+.cam-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  min-width: 48px;
+  padding: 7px;
+  background: rgba(13, 71, 161, 0.055);
+  border: 1px solid rgba(13, 71, 161, 0.08);
+  border-radius: 10px;
+}
+.cam-group-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  color: #0d47a1;
+  text-transform: uppercase;
+  line-height: 1;
+}
+.cam-row {
+  display: flex;
+  gap: 5px;
+}
+#cam-controls .cam-group:nth-of-type(2) .cam-row {
+  display: grid;
+  grid-template-columns: repeat(2, 30px);
+  gap: 5px;
+}
+#cam-controls .cam-group:nth-of-type(3) .cam-row {
+  flex-direction: column;
+}
+.cam-pan-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 30px);
+  grid-template-rows: repeat(3, 30px);
+  gap: 3px;
+}
+.cam-pan-up    { grid-area: 1 / 2; }
+.cam-pan-left  { grid-area: 2 / 1; }
+.cam-pan-right { grid-area: 2 / 3; }
+.cam-pan-down  { grid-area: 3 / 2; }
+.cam-btn {
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #1565c0 0%, #0d47a1 100%);
+  color: white;
+  font-size: 0;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 0.08s, background 0.12s, box-shadow 0.12s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.24), 0 2px 6px rgba(13, 71, 161, 0.24);
+}
+.cam-btn::before {
+  display: inline-block;
+  font-size: 15px;
+  line-height: 1;
+}
+.cam-btn[data-action="pan-up"]::before { content: "\2191"; }
+.cam-btn[data-action="pan-left"]::before { content: "\2190"; }
+.cam-btn[data-action="pan-right"]::before { content: "\2192"; }
+.cam-btn[data-action="pan-down"]::before { content: "\2193"; }
+.cam-btn[data-action="rot-left"]::before { content: "\21ba"; }
+.cam-btn[data-action="rot-right"]::before { content: "\21bb"; }
+.cam-btn[data-action="tilt-up"]::before { content: "\21e7"; }
+.cam-btn[data-action="tilt-down"]::before { content: "\21e9"; }
+.cam-btn[data-action="zoom-in"]::before { content: "+"; font-size: 17px; }
+.cam-btn[data-action="zoom-out"]::before { content: "-"; font-size: 19px; transform: translateY(-1px); }
+.cam-btn:hover {
+  background: linear-gradient(180deg, #1976d2 0%, #1565c0 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.3), 0 3px 8px rgba(13, 71, 161, 0.3);
+}
+.cam-btn:focus-visible {
+  outline: 3px solid rgba(245, 124, 0, 0.45);
+  outline-offset: 2px;
+}
+.cam-btn:active { transform: scale(0.94); background: #f57c00; }
+@media (max-width: 480px) {
+  #cam-controls {
+    left: calc(8px + var(--safe-left));
+    bottom: calc(70px + var(--safe-bottom));
+    padding: 8px;
+    gap: 5px;
+  }
+  .cam-group { padding: 5px; }
+  .cam-btn { width: 28px; height: 28px; }
+  .cam-btn::before { font-size: 14px; }
+  .cam-pan-grid { grid-template-columns: repeat(3, 28px); grid-template-rows: repeat(3, 28px); }
+  #cam-controls .cam-group:nth-of-type(2) .cam-row { grid-template-columns: repeat(2, 28px); }
+}
+@media (hover: none) and (pointer: coarse) {
+  .cam-btn { width: 36px; height: 36px; }
+  .cam-btn::before { font-size: 16px; }
+  .cam-pan-grid { grid-template-columns: repeat(3, 36px); grid-template-rows: repeat(3, 36px); }
+  #cam-controls .cam-group:nth-of-type(2) .cam-row { grid-template-columns: repeat(2, 36px); }
 }
 
 #labels {
@@ -701,7 +880,7 @@ canvas {
   #brand-bar {
     align-items: flex-start;
     gap: 10px;
-    padding: 8px 12px;
+    padding: calc(8px + var(--safe-top)) calc(12px + var(--safe-right)) 8px calc(12px + var(--safe-left));
   }
 
   #iwmi-logo,
@@ -718,10 +897,10 @@ canvas {
   }
 
   #ui {
-    top: 68px;
-    left: 10px;
-    max-width: min(300px, calc(100vw - 20px));
-    max-height: 44vh;
+    top: calc(68px + var(--safe-top));
+    left: calc(var(--mobile-edge-gap) + var(--safe-left));
+    max-width: min(300px, calc(100vw - 20px - var(--safe-left) - var(--safe-right)));
+    max-height: calc(44dvh - var(--safe-top));
     padding: 12px 14px;
   }
 
@@ -730,7 +909,6 @@ canvas {
   }
 
   .legend {
-    display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 6px 10px;
   }
@@ -739,37 +917,46 @@ canvas {
     font-size: 12px;
   }
 
-  .controls button {
-    flex: 1 1 88px;
-  }
+  .controls { grid-template-columns: 1fr 1fr; }
 
   #tour-panel {
-    left: 10px;
-    right: 10px;
-    bottom: 10px;
+    left: calc(var(--mobile-edge-gap) + var(--safe-left));
+    right: calc(var(--mobile-edge-gap) + var(--safe-right));
+    bottom: calc(var(--mobile-edge-gap) + var(--safe-bottom));
     width: auto;
+    max-height: calc(56dvh - var(--safe-bottom));
     padding: 12px 14px;
   }
 
   #tour-start {
-    right: 10px;
-    bottom: 10px;
+    right: calc(var(--mobile-edge-gap) + var(--safe-right));
+    bottom: calc(var(--mobile-edge-gap) + var(--safe-bottom));
     padding: 12px 18px;
   }
 
   .label {
     font-size: 9px;
     padding: 3px 7px;
+    max-width: 42vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 
 @media (max-width: 480px) {
   #ui:not(.ui-collapsed) {
-    right: 10px;
+    right: calc(var(--mobile-edge-gap) + var(--safe-right));
+    max-width: none;
+  }
+
+  .legend,
+  .controls {
+    grid-template-columns: 1fr;
   }
 
   .welcome-card {
     padding: 22px 18px;
+    margin: 0;
   }
 
   .welcome-actions {
@@ -782,6 +969,16 @@ canvas {
 
   .tour-buttons button {
     flex: 1 1 30%;
+  }
+
+  #tour-start {
+    left: calc(var(--mobile-edge-gap) + var(--safe-left));
+    right: calc(var(--mobile-edge-gap) + var(--safe-right));
+    width: auto;
+  }
+
+  #tour-panel {
+    max-height: calc(62dvh - var(--safe-bottom));
   }
 }
 
@@ -804,28 +1001,33 @@ canvas {
 
 /* ---------- SHORT VIEWPORTS / MOBILE LANDSCAPE (height <= 500) ---------- */
 @media (max-height: 500px) {
-  #brand-bar { padding: 6px 14px; }
+  #brand-bar { padding: calc(6px + var(--safe-top)) calc(14px + var(--safe-right)) 6px calc(14px + var(--safe-left)); }
   #iwmi-logo, .logo-fallback { height: 28px; }
   .brand-text h1 { font-size: 13px; }
   .brand-text p { font-size: 9px; }
-  #ui { top: 56px; max-height: calc(100vh - 70px); padding: 10px 12px; }
+  #ui { top: calc(56px + var(--safe-top)); max-height: calc(100dvh - 70px - var(--safe-top) - var(--safe-bottom)); padding: 10px 12px; }
   #ui h1 { font-size: 16px; }
   .legend { gap: 4px; }
   .legend-item { font-size: 11px; }
   .abc-legend { padding: 6px 8px; }
-  #wasa-panel { top: 56px; max-height: calc(100vh - 70px); padding: 12px 14px; }
-  #tour-panel { padding: 10px 12px; }
+  .hint,
+  .contact,
+  .copyright,
+  .credits { display: none; }
+  #wasa-panel { top: calc(56px + var(--safe-top)); max-height: calc(100dvh - 70px - var(--safe-top) - var(--safe-bottom)); padding: 12px 14px; }
+  #tour-panel { padding: 10px 12px; max-height: calc(100dvh - 70px - var(--safe-top) - var(--safe-bottom)); }
   #tour-title { font-size: 16px; margin-bottom: 4px; }
   #tour-text { font-size: 12px; min-height: 40px; margin-bottom: 8px; }
+  #cam-controls { transform: scale(0.9); transform-origin: left bottom; }
 }
 
 /* ---------- VERY SMALL PHONES (<= 380px) ---------- */
 @media (max-width: 380px) {
-  #brand-bar { padding: 6px 10px; gap: 8px; }
+  #brand-bar { padding: calc(6px + var(--safe-top)) calc(10px + var(--safe-right)) 6px calc(10px + var(--safe-left)); gap: 8px; }
   #iwmi-logo, .logo-fallback { height: 30px; }
   .brand-text h1 { font-size: 13px; }
   .brand-text p { display: none; }
-  #ui { top: 60px; left: 8px; right: 8px; max-width: none; padding: 10px 12px; }
+  #ui { top: calc(60px + var(--safe-top)); left: calc(8px + var(--safe-left)); right: calc(8px + var(--safe-right)); max-width: none; padding: 10px 12px; }
   #ui h1 { font-size: 16px; }
   .legend { grid-template-columns: 1fr; }
   .controls { gap: 4px; }
@@ -835,6 +1037,15 @@ canvas {
   #tour-text { font-size: 12px; min-height: 50px; }
   .tour-buttons button { padding: 7px 4px; font-size: 11px; }
   .label { font-size: 8px; padding: 2px 5px; }
+  #cam-controls {
+    max-width: calc(100vw - 16px - var(--safe-left) - var(--safe-right));
+    gap: 4px;
+  }
+  .cam-group-label { display: none; }
+  .cam-group { padding: 4px; }
+  .cam-btn { width: 26px; height: 26px; }
+  .cam-pan-grid { grid-template-columns: repeat(3, 26px); grid-template-rows: repeat(3, 26px); }
+  #cam-controls .cam-group:nth-of-type(2) .cam-row { grid-template-columns: repeat(2, 26px); }
 }
 
 /* ---------- TOUCH DEVICES — make buttons easier to tap ---------- */
@@ -847,4 +1058,11 @@ canvas {
   #welcome-tour {
     min-height: 36px;
   }
+}
+
+@media (hover: none) and (pointer: coarse) and (max-width: 380px) {
+  .cam-btn { width: 26px; height: 26px; }
+  .cam-btn::before { font-size: 13px; }
+  .cam-pan-grid { grid-template-columns: repeat(3, 26px); grid-template-rows: repeat(3, 26px); }
+  #cam-controls .cam-group:nth-of-type(2) .cam-row { grid-template-columns: repeat(2, 26px); }
 }
