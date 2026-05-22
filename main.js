@@ -5777,24 +5777,83 @@ if (speechAvailable) {
   pickVoice();
   window.speechSynthesis.onvoiceschanged = pickVoice;
 }
-function speakStop() {
+// Chrome's speechSynthesis truncates utterances over ~200-300 chars and also
+// stops after ~15 s of continuous speech. Split each stop into sentence-sized
+// chunks so the whole narration is read end-to-end.
+function chunkForSpeech(text, maxLen = 180) {
+  const sentences = text.match(/[^.!?…]+[.!?…]+["')\]]*\s*|[^.!?…]+$/g) || [text];
+  const out = [];
+  let buf = '';
+  for (const raw of sentences) {
+    const sent = raw.trim();
+    if (!sent) continue;
+    if (sent.length > maxLen) {
+      if (buf) { out.push(buf); buf = ''; }
+      // Fall back to clause-level split for an oversize sentence.
+      const parts = sent.split(/,\s+|\s+—\s+|\s+-\s+/);
+      let sub = '';
+      for (const p of parts) {
+        if (sub && sub.length + 2 + p.length > maxLen) { out.push(sub); sub = p; }
+        else sub = sub ? sub + ', ' + p : p;
+      }
+      if (sub) out.push(sub);
+      continue;
+    }
+    if (buf && buf.length + 1 + sent.length > maxLen) { out.push(buf); buf = sent; }
+    else buf = buf ? buf + ' ' + sent : sent;
+  }
+  if (buf) out.push(buf);
+  return out;
+}
+
+// Tracks whether the current narration has finished, so auto-advance can
+// wait for the voice to read through long stops instead of cutting it off.
+let speechFinished = true;
+// Bumped each time a new narration starts (or stopSpeech is called); any
+// in-flight `speakNext` chain whose token no longer matches exits silently.
+// This is what prevents a stale chunk-chain from continuing to speak after
+// the user has clicked Next, Pause, or moved to another card.
+let speechToken = 0;
+
+// Speak `text` by chunking it into sentence-sized utterances and queueing
+// each ONLY after the previous one's `onend` fires. Chrome silently drops
+// utterances #2+ when many are queued synchronously, so chaining is the
+// reliable way to guarantee every sentence is spoken.
+function startSpeech(text) {
   if (!voiceEnabled || !speechAvailable) return;
   window.speechSynthesis.cancel();
-  const s = tourStops[tourIndex];
-  const utter = new SpeechSynthesisUtterance(`${s.title}. ${s.text}`);
-  utter.rate = 0.95;
-  utter.pitch = 1.0;
-  utter.volume = 0.95;
-  if (preferredVoice) utter.voice = preferredVoice;
+  const chunks = chunkForSpeech(text);
+  if (!chunks.length) return;
+  const myToken = ++speechToken;
   speechFinished = false;
-  utter.onend = () => { speechFinished = true; };
-  utter.onerror = () => { speechFinished = true; };
-  window.speechSynthesis.speak(utter);
+  let i = 0;
+  const speakNext = () => {
+    if (myToken !== speechToken) return;             // a newer call superseded us
+    if (i >= chunks.length || !voiceEnabled) {
+      speechFinished = true;
+      return;
+    }
+    const utter = new SpeechSynthesisUtterance(chunks[i++]);
+    utter.rate = 0.95;
+    utter.pitch = 1.0;
+    utter.volume = 0.95;
+    if (preferredVoice) utter.voice = preferredVoice;
+    utter.onend = speakNext;
+    utter.onerror = speakNext;
+    window.speechSynthesis.speak(utter);
+  };
+  speakNext();
 }
-// Tracks whether the current stop's narration has finished, so auto-advance
-// can wait for the voice to read through long stops instead of cutting it off.
-let speechFinished = true;
+
+function speakStop() {
+  if (!voiceEnabled || !speechAvailable) return;
+  const s = tourStops[tourIndex];
+  startSpeech(`${s.title}. ${s.text}`);
+}
+
 function stopSpeech() {
+  speechToken++;                                     // invalidate any in-flight chain
+  speechFinished = true;
   if (speechAvailable) window.speechSynthesis.cancel();
 }
 
@@ -6059,6 +6118,24 @@ function clearWasaHighlights() {
   labelDefs.forEach(def => def.el.classList.remove('tour-dimmed', 'tour-highlighted'));
 }
 
+// Speak arbitrary text using the same chained-chunk pipeline as the tour.
+function speakText(text) { startSpeech(text); }
+
+// Frame each WASA card explicitly around water-cycle improvement, so the
+// narration matches the panel's stated purpose: "How WASA improves the
+// water cycle."
+function speakWasa(iv) {
+  speakText(`${iv.title}. ${iv.text} How it improves the water cycle: ${iv.impact}.`);
+}
+
+// Spoken when the WASA panel opens. States the panel's purpose so the user
+// hears the framing before they click any card.
+const wasaIntroSpeech =
+  'How WASA improves the water cycle. The Water and Soil Accelerator scales eight proven, ' +
+  'complementary interventions — from on-farm practices to landscape-level green infrastructure — ' +
+  'that capture rainfall, protect soils, and restore the hydrological cycle from plot to landscape. ' +
+  'Click Show in scene to fly to each solution and hear how it improves the water cycle.';
+
 function buildWasaCards() {
   const frag = document.createDocumentFragment();
   wasaInterventions.forEach((iv) => {
@@ -6089,6 +6166,7 @@ function buildWasaCards() {
       // If the guided tour is open, close it so the camera is ours.
       if (!tourPanel.classList.contains('tour-hidden')) closeTour();
       wasaFlyTo(iv);
+      speakWasa(iv);
     });
 
     card.append(head, desc, impact, btn);
@@ -6103,12 +6181,14 @@ function openWasaPanel() {
   if (!tourPanel.classList.contains('tour-hidden')) closeTour();
   wasaPanel.classList.remove('wasa-hidden');
   wasaPanel.setAttribute('aria-hidden', 'false');
+  speakText(wasaIntroSpeech);
   syncUiMode();
 }
 function closeWasaPanel() {
   wasaPanel.classList.add('wasa-hidden');
   wasaPanel.setAttribute('aria-hidden', 'true');
   clearWasaHighlights();
+  stopSpeech();
   syncUiMode();
 }
 
