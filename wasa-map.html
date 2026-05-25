@@ -196,6 +196,10 @@
       showBtn.addEventListener('click', () => setHidden(false));
     })();
   </script>
-  <script src="cesium-scene.js"></script>
+  <!-- type="module" so Vite tracks the file at build time and includes it
+       in ./dist; without it the file is invisible to the bundler and 404s
+       on GitHub Pages. The script doesn't use ES imports internally, so the
+       module shim is purely a build-time signal here. -->
+  <script type="module" src="cesium-scene.js"></script>
 </body>
 </html>
