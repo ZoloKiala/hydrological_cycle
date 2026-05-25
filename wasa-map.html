@@ -15,6 +15,12 @@
   </script>
   <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.118/Build/Cesium/Widgets/widgets.css" />
   <script src="https://cesium.com/downloads/cesiumjs/releases/1.118/Build/Cesium/Cesium.js"></script>
+  <!-- Mapillary JS — free, open-source alternative to Google Street View.
+       The viewer is rendered inside the #mly-container modal when the user
+       clicks "Street View" on a card. Needs an access token from
+       mapillary.com/dashboard/developers (free, no billing). -->
+  <link rel="stylesheet" href="https://unpkg.com/mapillary-js@4.1.2/dist/mapillary.css" />
+  <script src="https://unpkg.com/mapillary-js@4.1.2/dist/mapillary.js"></script>
   <style>
     html, body { height: 100%; margin: 0; background: #0a1820; color: #e6f0f7;
       font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; overflow: hidden; }
@@ -166,8 +172,44 @@
     .map-focus-btn:hover { background: rgba(79, 195, 247, 0.28); }
     .map-walk-btn { display: inline-block; padding: 6px 12px; border-radius: 6px;
       border: 1px solid #ffb74d; background: rgba(255, 183, 77, 0.14);
-      color: #fff; cursor: pointer; font-size: 12px; }
+      color: #fff; cursor: pointer; font-size: 12px; margin-right: 6px; }
     .map-walk-btn:hover { background: rgba(255, 183, 77, 0.26); }
+    .map-street-btn { display: inline-block; padding: 6px 12px; border-radius: 6px;
+      border: 1px solid #81c784; background: rgba(129, 199, 132, 0.16);
+      color: #fff; cursor: pointer; font-size: 12px; }
+    .map-street-btn:hover { background: rgba(129, 199, 132, 0.28); }
+    /* ---------- MAPILLARY STREET VIEW MODAL ---------- */
+    #mly-overlay { position: fixed; inset: 0; z-index: 50; display: flex;
+      background: #000; }
+    #mly-overlay[hidden] { display: none; }
+    #mly-container { flex: 1; width: 100%; height: 100%; background: #000; }
+    .mly-hud { position: absolute; top: 16px; left: 16px; right: 16px;
+      display: flex; justify-content: space-between; align-items: center;
+      z-index: 51; pointer-events: none; }
+    .mly-hud > * { pointer-events: auto; }
+    #mly-title { color: #fff; font-weight: 600; padding: 8px 16px;
+      background: rgba(7,28,41,0.88); border-radius: 20px;
+      backdrop-filter: blur(6px); font-size: 13px; max-width: 60vw;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #mly-close { padding: 8px 16px; border-radius: 20px;
+      background: rgba(255,112,67,0.32); color: #fff; border: 1px solid #ff7043;
+      cursor: pointer; font-size: 13px; font-weight: 600; }
+    #mly-close:hover { background: rgba(255,112,67,0.5); }
+    #mly-empty { position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%); z-index: 51; padding: 24px 32px;
+      background: rgba(7,28,41,0.95); color: #cfe4f1; border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.18); text-align: center;
+      max-width: 480px; font-size: 14px; line-height: 1.5; }
+    #mly-empty[hidden] { display: none; }
+    #mly-empty h3 { margin: 0 0 8px 0; color: #ffd54f; font-size: 16px; }
+    #mly-empty a { color: #4fc3f7; }
+    /* Mapillary token notice — shown when no ?mapillary_token=… in URL. */
+    #mly-token-notice { position: fixed; bottom: 110px; right: 16px; z-index: 4;
+      max-width: 340px; padding: 10px 14px; border-radius: 10px;
+      background: rgba(7,28,41,0.92); color: #81c784; font-size: 12px;
+      line-height: 1.45; border: 1px solid rgba(129,199,132,0.4); display: none; }
+    #mly-token-notice a { color: #4fc3f7; }
+    body.panel-hidden #mly-token-notice { right: 16px; }
     .map-legend { margin-top: 8px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.12);
       font-size: 12px; color: #cfe4f1; }
     .map-legend .row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
@@ -227,6 +269,29 @@
 
   <div id="cesiumContainer"></div>
 
+  <!-- Mapillary Street View modal. Hidden by default; shown by clicking
+       the "Street View" button on any WASA card. -->
+  <div id="mly-overlay" hidden>
+    <div id="mly-container"></div>
+    <div class="mly-hud">
+      <span id="mly-title">Street View</span>
+      <button id="mly-close" type="button">x Close</button>
+    </div>
+    <div id="mly-empty" hidden>
+      <h3>No Street View imagery near here</h3>
+      <p id="mly-empty-msg">Mapillary is crowd-sourced — no photos have been uploaded near this site yet.
+        Try the "Fly to site" or "Walk here" buttons instead.</p>
+    </div>
+  </div>
+
+  <!-- Mapillary token notice — shown when no token is set in the URL. -->
+  <div id="mly-token-notice">
+    <strong>Street View needs a Mapillary token.</strong>
+    Get a free token at
+    <a href="https://www.mapillary.com/dashboard/developers" target="_blank" rel="noopener">mapillary.com/dashboard/developers</a>
+    (no billing) and reload with <code>?mapillary_token=MLY|...</code>.
+  </div>
+
   <!-- First-person walk-mode HUD. Hidden unless body has class `walk-mode`. -->
   <div id="walk-overlay" aria-hidden="true">
     <div class="walk-title" id="walk-title">Walking at <span id="walk-title-name">site</span></div>
@@ -257,11 +322,11 @@
   <aside id="map-panel">
     <button id="map-panel-close" type="button" aria-label="Hide WASA panel" title="Hide panel">x</button>
     <span class="eyebrow">How WASA improves the water cycle</span>
-    <h2 id="watershed-name">Mwankhokwe pilot watershed</h2>
+    <h2 id="watershed-name">Mudi River pilot watershed</h2>
     <p class="intro">
-      A <em>fictional</em> 4&nbsp;km&times;3&nbsp;km demonstration watershed in the Shire River basin,
-      southern Malawi. Each marker is one of the eight WASA interventions on a real 3D globe — click
-      a card to fly the camera in.
+      A <em>fictional</em> 3&nbsp;km&times;2&nbsp;km demonstration watershed around Blantyre,
+      southern Malawi. Each marker is one of the eight WASA interventions on a real 3D globe.
+      Click <strong>Street&nbsp;View</strong> on any card to drop into real Mapillary photos at that spot.
     </p>
     <a id="panel-3d-link" href="index.html"
        title="Compare this satellite view with the stylised Three.js scene">
@@ -296,8 +361,9 @@
   </div>
 
   <div id="site-badge">
-    <strong>Demo location</strong> · centred on a <em>dummy point</em> in the Shire River basin
-    (-15.700,&nbsp;35.005). All intervention sites are fictional and placed for visualisation only.
+    <strong>Demo location</strong> · centred on <em>Blantyre, Malawi</em>
+    (-15.786,&nbsp;35.006) so Mapillary Street View has crowdsourced photo coverage at every marker.
+    The 8 intervention sites are fictional, placed for visualisation.
   </div>
 
   <script>

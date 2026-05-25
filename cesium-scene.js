@@ -9,24 +9,28 @@
 // Esri World Imagery on a flat ellipsoid. Pass it via the URL:
 //   wasa-map.html?token=eyJhbGciOi...
 
-// ---------- DUMMY LOCATION ----------
-const CENTRE = { lat: -15.7000, lng: 35.0050 };
+// ---------- DEMO LOCATION ----------
+// Centred on Blantyre, southern Malawi — where Mapillary has dense crowd-
+// sourced street-level coverage. The watershed and intervention sites are
+// still fictional (placed for the visualisation) but they sit on real roads
+// so the Mapillary Street View viewer can find imagery near every marker.
+const CENTRE = { lat: -15.7861, lng: 35.0058 };
 
 const WATERSHED = [
-  [-15.6885, 34.9920],
-  [-15.6900, 35.0210],
-  [-15.7080, 35.0280],
-  [-15.7180, 35.0100],
-  [-15.7060, 34.9900],
+  [-15.7760, 34.9970],
+  [-15.7775, 35.0150],
+  [-15.7945, 35.0170],
+  [-15.7965, 35.0000],
+  [-15.7850, 34.9960],
 ];
 
 const RIVER = [
-  [-15.6920, 35.0000],
-  [-15.6970, 35.0060],
-  [-15.7010, 35.0095],
-  [-15.7050, 35.0120],
-  [-15.7110, 35.0140],
-  [-15.7170, 35.0125],
+  [-15.7790, 35.0000],
+  [-15.7830, 35.0050],
+  [-15.7870, 35.0080],
+  [-15.7905, 35.0105],
+  [-15.7935, 35.0130],
+  [-15.7960, 35.0160],
 ];
 
 // ---------- WASA INTERVENTIONS ----------
@@ -40,7 +44,7 @@ const interventions = [
       'Replants tree cover on cleared mountain slopes, pumping moisture back into the atmosphere ' +
       'through transpiration and anchoring topsoil. Agroforestry rows mix trees with food crops.',
     impact: 'Recovers transpiration, recharges groundwater, anchors soil',
-    pos: [-15.6945, 34.9970],
+    pos: [-15.7795, 35.0015],
     range: 600, heading: 60, pitch: -35,
   },
   {
@@ -50,7 +54,7 @@ const interventions = [
       'Minimum tillage, mulching, and cover crops keep soils porous and shaded. Rainfall infiltrates ' +
       'instead of running off; organic matter triples soil water-holding capacity.',
     impact: 'Higher infiltration, lower evaporation loss',
-    pos: [-15.6995, 35.0035],
+    pos: [-15.7840, 35.0040],
     range: 400, heading: 20, pitch: -40,
   },
   {
@@ -60,7 +64,7 @@ const interventions = [
       'Small earthen cross-ridges trap rainfall where it falls; soil rippers break compacted layers ' +
       'so water moves into the root zone. Crops survive erratic-rainfall seasons.',
     impact: 'In-situ rainwater capture, deeper percolation',
-    pos: [-15.7012, 35.0080],
+    pos: [-15.7880, 35.0090],
     range: 400, heading: 340, pitch: -40,
   },
   {
@@ -70,7 +74,7 @@ const interventions = [
       'Contour bunds, mulch strips, and grass tufts hold rainfall on the slope above the gully. ' +
       'Riparian buffers along the river trap sediment before it reaches downstream water bodies.',
     impact: 'Protected topsoil, reduced sediment in rivers',
-    pos: [-15.7060, 35.0110],
+    pos: [-15.7915, 35.0050],
     range: 500, heading: 110, pitch: -35,
   },
   {
@@ -80,7 +84,7 @@ const interventions = [
       'Two linked farm ponds store wet-season runoff for dry-season use. Inflow from the stream, ' +
       'outflow tied to terraced fields. The system recharges shallow groundwater and supports life year-round.',
     impact: 'Year-round water access, groundwater recharge',
-    pos: [-15.7035, 35.0150],
+    pos: [-15.7855, 35.0125],
     range: 400, heading: 0, pitch: -45,
   },
   {
@@ -90,7 +94,7 @@ const interventions = [
       'Restored wetlands and small check dams flatten flood peaks and extend dry-season base flow. ' +
       'The watershed acts like a sponge instead of a fast pipe to the river.',
     impact: 'Lower flood peaks, longer base flow',
-    pos: [-15.7130, 35.0145],
+    pos: [-15.7930, 35.0110],
     range: 500, heading: 70, pitch: -35,
   },
   {
@@ -100,7 +104,7 @@ const interventions = [
       'A local watershed committee — convened in the village near the outlet — decides where ponds and ' +
       'forest patches go, enforces grazing rules, and maintains the interventions between seasons.',
     impact: 'Durable, locally-owned landscape stewardship',
-    pos: [-15.7000, 35.0050],
+    pos: [-15.7861, 35.0058],
     range: 1800, heading: 0, pitch: -55,
   },
   {
@@ -110,7 +114,7 @@ const interventions = [
       'Seasonal forecasts and on-time advisories are broadcast from the school on the ridge. ' +
       'Farmers plant, irrigate, and harvest at the right moment — more crop per millimetre of rain.',
     impact: 'More crop per drop, fewer failed seasons',
-    pos: [-15.6920, 35.0190],
+    pos: [-15.7800, 35.0080],
     range: 600, heading: 200, pitch: -35,
   },
 ];
@@ -461,9 +465,96 @@ const interventions = [
 
   document.getElementById('walk-exit-btn').addEventListener('click', exitWalkMode);
 
+  // ---------- MAPILLARY STREET VIEW ----------
+  // Real, photographic Street View — the open-source equivalent of Google
+  // Street View. We query the Mapillary Graph API for the nearest image to
+  // a given intervention site, then mount the Mapillary Viewer inside the
+  // #mly-overlay modal. Free tokens at mapillary.com/dashboard/developers
+  // (no billing). Token is read from the URL: ?mapillary_token=MLY|...
+  const mlyToken = new URLSearchParams(location.search).get('mapillary_token') || '';
+  let mlyViewer = null;
+  const mlyOverlay = document.getElementById('mly-overlay');
+  const mlyTitle = document.getElementById('mly-title');
+  const mlyEmpty = document.getElementById('mly-empty');
+  const mlyEmptyMsg = document.getElementById('mly-empty-msg');
+  const mlyTokenNotice = document.getElementById('mly-token-notice');
+
+  async function openStreetView(idx) {
+    const iv = interventions[idx];
+    const [lat, lng] = iv.pos;
+
+    // No token → show the bottom-right notice instead of opening the modal.
+    if (!mlyToken) {
+      mlyTokenNotice.style.display = 'block';
+      // Auto-dismiss after 8 s so it doesn't linger.
+      setTimeout(() => { mlyTokenNotice.style.display = 'none'; }, 8000);
+      return;
+    }
+
+    mlyTitle.textContent = 'Street View — ' + iv.title;
+    mlyEmpty.hidden = true;
+    mlyOverlay.hidden = false;
+
+    // Search a ~250 m square for the nearest image. Mapillary's bbox order
+    // is `west,south,east,north` (lng, lat, lng, lat).
+    const r = 0.0025;     // ~250 m
+    const bbox = [lng - r, lat - r, lng + r, lat + r].join(',');
+    const url = 'https://graph.mapillary.com/images'
+      + '?access_token=' + encodeURIComponent(mlyToken)
+      + '&fields=id,geometry,is_pano'
+      + '&bbox=' + bbox
+      + '&limit=5';
+
+    let imageId = null;
+    try {
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+      if (!data.data || !data.data.length) {
+        mlyEmptyMsg.textContent =
+          'Mapillary has no street-level photos within ~250 m of this site. '
+          + 'Try the "Fly to site" or "Walk here" buttons, or pick a card whose '
+          + 'marker sits closer to a road.';
+        mlyEmpty.hidden = false;
+        return;
+      }
+      // Prefer 360° panoramas if any exist — they give the true Street View feel.
+      const pano = data.data.find(d => d.is_pano);
+      imageId = (pano || data.data[0]).id;
+    } catch (e) {
+      console.error('[mapillary] lookup failed', e);
+      mlyEmptyMsg.textContent = 'Could not reach Mapillary: ' + e.message
+        + '. Check that your token is valid (format MLY|...).';
+      mlyEmpty.hidden = false;
+      return;
+    }
+
+    // Mount the viewer once; subsequent calls just moveTo() the new image
+    // so we don't tear down WebGL contexts.
+    if (!mlyViewer && window.mapillary && window.mapillary.Viewer) {
+      mlyViewer = new mapillary.Viewer({
+        accessToken: mlyToken,
+        container: 'mly-container',
+        imageId,
+      });
+    } else if (mlyViewer) {
+      try { await mlyViewer.moveTo(imageId); }
+      catch (e) { console.warn('[mapillary] moveTo failed', e); }
+    } else {
+      // Library failed to load (network/CDN issue).
+      mlyEmptyMsg.textContent = 'Mapillary library did not load. Reload the page.';
+      mlyEmpty.hidden = false;
+    }
+  }
+
+  document.getElementById('mly-close').addEventListener('click', () => {
+    mlyOverlay.hidden = true;
+  });
+
   // Expose for the cards builder; also used by the marker click below.
   window.__focusIntervention = focusIntervention;
   window.__walkAt = enterWalkMode;
+  window.__streetView = openStreetView;
 
   // Marker clicks: Cesium's default selection already opens the info box on
   // click, so we just additionally fly the camera in.
@@ -520,7 +611,16 @@ function buildCards() {
       if (window.__walkAt) window.__walkAt(idx);
     });
 
-    card.append(head, desc, impact, btn, walkBtn);
+    const streetBtn = document.createElement('button');
+    streetBtn.className = 'map-street-btn';
+    streetBtn.type = 'button';
+    streetBtn.textContent = 'Street View';
+    streetBtn.title = 'Open Mapillary Street View — real ground-level photos near this site';
+    streetBtn.addEventListener('click', () => {
+      if (window.__streetView) window.__streetView(idx);
+    });
+
+    card.append(head, desc, impact, btn, walkBtn, streetBtn);
     frag.appendChild(card);
   });
   container.replaceChildren(frag);
