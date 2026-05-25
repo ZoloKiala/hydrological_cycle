@@ -142,6 +142,15 @@ const interventions = [
     maximumLevel: 17,
   });
 
+  // Esri "World Boundaries and Places" — transparent reference layer with
+  // country / admin borders, populated-place labels, and major roads. Stacks
+  // on top of the satellite imagery so the user sees place names too.
+  const esriLabels = new Cesium.UrlTemplateImageryProvider({
+    url: 'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+    credit: new Cesium.Credit('Esri labels'),
+    maximumLevel: 17,
+  });
+
   // --- Terrain: real elevation if we have a token, otherwise flat ellipsoid.
   let terrainProvider;
   if (token) {
@@ -174,6 +183,10 @@ const interventions = [
     selectionIndicator: true,
   });
   viewer.imageryLayers.addImageryProvider(esriImagery);
+  // Save the labels layer in a closure-accessible var so the toggle button
+  // can show/hide it without losing its position in the layer stack.
+  const labelsLayer = viewer.imageryLayers.addImageryProvider(esriLabels);
+  labelsLayer.alpha = 0.95;
 
   // Hide the default Cesium logo (still keep the data attribution in the
   // bottom credit container, which is required by Esri and Cesium's TOS).
