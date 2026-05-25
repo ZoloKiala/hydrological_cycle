@@ -200,10 +200,12 @@
       #north-arrow { top: 70px; left: 92px; }
     }
     /* ---------- COORDINATES READOUT ---------- */
-    /* Live cursor lat/lng readout. Sits next to the scale bar at bottom-center. */
-    #cursor-coords { position: fixed; bottom: 16px; left: 50%;
-      transform: translateX(calc(-50% + 140px)); z-index: 4;
-      padding: 5px 10px; background: rgba(7,28,41,0.78);
+    /* Live cursor lat/lng readout. Sits ABOVE the scale bar at bottom-center
+       (the scale bar's width changes with zoom, so they were colliding when
+       placed side-by-side). */
+    #cursor-coords { position: fixed; bottom: 48px; left: 50%;
+      transform: translateX(-50%); z-index: 4;
+      padding: 4px 10px; background: rgba(7,28,41,0.78);
       color: #cfe4f1; font-size: 11px; font-family: ui-monospace, Menlo, Consolas, monospace;
       border-radius: 6px; border: 1px solid rgba(255,255,255,0.18);
       pointer-events: none; backdrop-filter: blur(4px); white-space: nowrap; }
