@@ -36,19 +36,43 @@
       font-size: 12px; line-height: 1.45; backdrop-filter: blur(6px); }
     #site-badge strong { color: #fff; font-size: 13px; }
     #site-badge em { color: #ffd54f; font-style: normal; }
-    #token-notice { position: fixed; top: 80px; left: 16px; z-index: 4;
-      max-width: 320px; padding: 10px 14px; border-radius: 10px;
+    /* Token notice lives in the bottom-left column ABOVE the site badge so
+       it never overlaps the InfoBox (which is in the top-left column). */
+    #token-notice { position: fixed; bottom: 110px; left: 16px; z-index: 4;
+      max-width: 360px; padding: 10px 14px 10px 14px; border-radius: 10px;
       background: rgba(7, 28, 41, 0.92); color: #ffd54f;
       font-size: 12px; line-height: 1.45;
       border: 1px solid rgba(255, 213, 79, 0.4); display: none; }
     #token-notice a { color: #4fc3f7; }
+    #token-notice-close { position: absolute; top: 4px; right: 6px;
+      width: 22px; height: 22px; border-radius: 50%; border: 0;
+      background: transparent; color: #ffd54f; cursor: pointer;
+      font-size: 16px; line-height: 1; padding: 0; opacity: 0.8; }
+    #token-notice-close:hover { opacity: 1; background: rgba(255,213,79,0.18); }
     #map-panel { position: fixed; top: 80px; right: 16px; bottom: 16px; width: 360px;
       z-index: 3; padding: 16px; overflow-y: auto;
       background: rgba(7, 28, 41, 0.88); color: #e6f0f7;
       border: 1px solid rgba(255,255,255,0.12); border-radius: 14px;
       backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-      box-shadow: 0 12px 40px rgba(0,0,0,0.45); }
-    #map-panel h2 { margin: 0 0 4px 0; font-size: 18px; }
+      box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+      transition: transform 0.25s ease, opacity 0.25s ease; }
+    #map-panel.panel-hidden { transform: translateX(calc(100% + 32px)); opacity: 0; pointer-events: none; }
+    #map-panel-close { position: absolute; top: 10px; right: 10px;
+      width: 26px; height: 26px; border-radius: 50%; border: 0;
+      background: rgba(255,255,255,0.08); color: #fff; cursor: pointer;
+      font-size: 16px; line-height: 1; padding: 0; }
+    #map-panel-close:hover { background: rgba(255,255,255,0.18); }
+    /* Floating "Show panel" toggle that appears when the panel is hidden. */
+    #map-panel-show { position: fixed; top: 80px; right: 16px; z-index: 4;
+      padding: 10px 14px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.4);
+      background: rgba(7, 28, 41, 0.88); color: #fff; cursor: pointer;
+      font-size: 13px; font-weight: 600; letter-spacing: 0.02em;
+      backdrop-filter: blur(6px); display: none; }
+    #map-panel-show:hover { background: rgba(7, 28, 41, 0.96); }
+    body.panel-hidden #map-panel-show { display: inline-block; }
+    /* When the panel is hidden, the InfoBox can use the full viewport width. */
+    body.panel-hidden .cesium-infoBox { max-width: calc(100vw - 32px) !important; }
+    #map-panel h2 { margin: 0 0 4px 0; font-size: 18px; padding-right: 28px; }
     #map-panel .eyebrow { display: block; font-size: 11px; color: #9bc7e2;
       letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 6px; }
     #map-panel .intro { font-size: 13px; line-height: 1.5; color: #cfe4f1;
@@ -70,10 +94,37 @@
       font-size: 12px; color: #cfe4f1; }
     .map-legend .row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
     .map-legend .swatch { width: 12px; height: 12px; border-radius: 2px; }
-    /* Cesium's built-in InfoBox sits top-right by default; restyle for dark theme. */
-    .cesium-infoBox { background: rgba(7, 28, 41, 0.92) !important;
-      color: #e6f0f7 !important; border: 1px solid rgba(255,255,255,0.18) !important; }
+    /* Cesium's built-in InfoBox sits top-right by default, which collides
+       with the WASA side panel. Move it to the top-LEFT below the brand bar,
+       give it a fixed width that fits next to (not under) the cards panel,
+       and restyle for the dark theme. */
+    .cesium-infoBox {
+      left: 16px !important;
+      right: auto !important;
+      top: 96px !important;
+      width: 340px !important;
+      max-width: calc(100vw - 392px) !important;    /* never reach the right panel */
+      max-height: calc(100vh - 320px) !important;     /* leave room for token notice + site badge below */
+      background: rgba(7, 28, 41, 0.94) !important;
+      color: #e6f0f7 !important;
+      border: 1px solid rgba(255,255,255,0.18) !important;
+      border-radius: 10px !important;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+    }
     .cesium-infoBox-title { color: #fff !important; background: rgba(255,213,79,0.18) !important; }
+    .cesium-infoBox iframe { background: transparent !important; }
+    /* The token notice also lives at top-left; nudge it lower when the
+       InfoBox is visible so the two don't stack. */
+    .cesium-infoBox-visible ~ #token-notice { top: auto !important; bottom: 100px !important; }
+    /* On narrow viewports the side panel becomes a bottom sheet — give the
+       InfoBox back the full width on the left. */
+    @media (max-width: 720px) {
+      .cesium-infoBox {
+        max-width: calc(100vw - 32px) !important;
+        max-height: 40vh !important;
+      }
+    }
     @media (max-width: 720px) {
       #map-panel { top: auto; bottom: 0; left: 0; right: 0; width: auto;
         max-height: 45vh; border-radius: 14px 14px 0 0; }
@@ -97,6 +148,8 @@
   <div id="cesiumContainer"></div>
 
   <div id="token-notice">
+    <button id="token-notice-close" type="button" aria-label="Dismiss"
+            onclick="document.getElementById('token-notice').style.display='none'">x</button>
     <strong>Running without a Cesium Ion token.</strong>
     Globe uses Esri satellite imagery on a flat ellipsoid (no real terrain elevation).
     For real hills, get a free token at
@@ -104,7 +157,10 @@
     and reload with <code>?token=YOUR_TOKEN</code>.
   </div>
 
+  <button id="map-panel-show" type="button" title="Show the WASA solutions panel">WASA Solutions</button>
+
   <aside id="map-panel">
+    <button id="map-panel-close" type="button" aria-label="Hide WASA panel" title="Hide panel">x</button>
     <span class="eyebrow">How WASA improves the water cycle</span>
     <h2 id="watershed-name">Mwankhokwe pilot watershed</h2>
     <p class="intro">
@@ -125,6 +181,21 @@
     (-15.700,&nbsp;35.005). All intervention sites are fictional and placed for visualisation only.
   </div>
 
+  <script>
+    // Toggle the WASA cards panel. Hiding it gives the map full width
+    // (including for the InfoBox via the body.panel-hidden CSS rules).
+    (function () {
+      const panel = document.getElementById('map-panel');
+      const closeBtn = document.getElementById('map-panel-close');
+      const showBtn = document.getElementById('map-panel-show');
+      const setHidden = (hidden) => {
+        panel.classList.toggle('panel-hidden', hidden);
+        document.body.classList.toggle('panel-hidden', hidden);
+      };
+      closeBtn.addEventListener('click', () => setHidden(true));
+      showBtn.addEventListener('click', () => setHidden(false));
+    })();
+  </script>
   <script src="cesium-scene.js"></script>
 </body>
 </html>
