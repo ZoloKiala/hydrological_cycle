@@ -65,7 +65,9 @@ const interventions = [
       'Minimum tillage, mulching, and cover crops keep soils porous and shaded. Rainfall infiltrates ' +
       'instead of running off; organic matter triples soil water-holding capacity.',
     impact: 'Higher infiltration, lower evaporation loss',
-    image: 'https://loremflickr.com/640/240/farm,field,mulch/all?lock=2',
+    // Wikimedia Commons photo of conservation-agriculture practices in
+    // Dar es Salaam, Tanzania — real African field setting.
+    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Agricultural%20activities%20as%20part%20of%20environmental%20conservation%20as%20seen%20in%20Dar%20es%20Salaam%2C%20Tanzania%20IZZD8108.jpg?width=640',
     pos: [-15.7840, 35.0040],
     range: 400, heading: 20, pitch: -40,
   },
