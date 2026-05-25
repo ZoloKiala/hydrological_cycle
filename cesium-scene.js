@@ -368,7 +368,7 @@ function escapeHtml(s) {
 // button has a `data-cam` action; we map the action to a per-frame step
 // while the button is held down (pointerdown -> repeat -> pointerup).
 function setupCamControls(viewer) {
-  const root = document.getElementById('cam-controls');
+  const root = document.getElementById('wasa-cam');
   if (!root) return;
 
   // Step sizes scale with current altitude so the same button feels
@@ -409,7 +409,7 @@ function setupCamControls(viewer) {
     }),
   };
 
-  root.querySelectorAll('.cam-btn').forEach((btn) => {
+  root.querySelectorAll('.wasa-cam-btn').forEach((btn) => {
     const action = actions[btn.dataset.cam];
     if (!action) return;
     // Repeat-while-held using requestAnimationFrame for smooth continuous

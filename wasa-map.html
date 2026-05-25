@@ -38,34 +38,38 @@
       border: 1px solid rgba(79,195,247,0.5); background: rgba(79,195,247,0.15);
       color: #fff; text-decoration: none; font-weight: 600; font-size: 13px; }
     #panel-3d-link:hover { background: rgba(79,195,247,0.28); }
-    /* On-screen camera navigation (matches the Three.js scene's cam-controls
-       idiom). Bottom-right cluster: pan grid + rotate row + tilt row + zoom row
-       + reset row. Each button supports click for one step and hold for
-       continuous motion — wired in cesium-scene.js. */
-    #cam-controls { position: fixed; right: 392px; bottom: 16px; z-index: 4;
-      display: flex; flex-direction: column; gap: 6px; padding: 8px;
-      background: rgba(7,28,41,0.78); border: 1px solid rgba(255,255,255,0.14);
-      border-radius: 10px; backdrop-filter: blur(6px); }
-    body.panel-hidden #cam-controls { right: 16px; }
-    .cam-row { display: flex; gap: 4px; justify-content: center; }
-    .cam-pan-grid { display: grid; grid-template-columns: repeat(3, 28px);
-      grid-template-rows: repeat(3, 28px); gap: 2px; justify-content: center; }
-    .cam-pan-grid .cam-pan-up    { grid-column: 2; grid-row: 1; }
-    .cam-pan-grid .cam-pan-left  { grid-column: 1; grid-row: 2; }
-    .cam-pan-grid .cam-pan-right { grid-column: 3; grid-row: 2; }
-    .cam-pan-grid .cam-pan-down  { grid-column: 2; grid-row: 3; }
-    .cam-btn { width: 28px; height: 28px; border-radius: 6px;
-      border: 1px solid rgba(255,255,255,0.22); background: rgba(255,255,255,0.06);
-      color: #fff; cursor: pointer; font-size: 14px; line-height: 1; padding: 0;
+    /* On-screen camera navigation for the Cesium scene. Namespaced under
+       #wasa-cam / .wasa-cam-* on purpose — style.css already defines
+       #cam-controls + .cam-btn with the Three.js scene's heavy light-blue
+       look, so reusing those names would inherit the wrong theme. Goal
+       here is small + non-salient: the controls live faintly at the
+       bottom edge and brighten only on hover. */
+    #wasa-cam { position: fixed; right: 392px; bottom: 16px; z-index: 4;
+      display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 5px 6px;
+      background: rgba(7,28,41,0.55); border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 8px; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+      opacity: 0.55; transition: opacity 0.18s; }
+    #wasa-cam:hover, #wasa-cam:focus-within { opacity: 1; }
+    body.panel-hidden #wasa-cam { right: 16px; }
+    .wasa-cam-pan { display: grid; grid-template-columns: repeat(3, 22px);
+      grid-template-rows: repeat(3, 22px); gap: 2px; }
+    .wasa-cam-pan .wasa-cam-pan-up    { grid-column: 2; grid-row: 1; }
+    .wasa-cam-pan .wasa-cam-pan-left  { grid-column: 1; grid-row: 2; }
+    .wasa-cam-pan .wasa-cam-pan-right { grid-column: 3; grid-row: 2; }
+    .wasa-cam-pan .wasa-cam-pan-down  { grid-column: 2; grid-row: 3; }
+    .wasa-cam-row { display: flex; gap: 2px; justify-content: center; }
+    .wasa-cam-btn { width: 22px; height: 22px; border-radius: 4px;
+      border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.04);
+      color: #cfe4f1; cursor: pointer; font-size: 10px; line-height: 1; padding: 0;
+      display: inline-flex; align-items: center; justify-content: center;
       user-select: none; -webkit-user-select: none; touch-action: manipulation; }
-    .cam-btn.wide { width: auto; padding: 0 10px; font-size: 11px; font-weight: 600; }
-    .cam-btn:hover { background: rgba(255,255,255,0.14); }
-    .cam-btn:active { background: rgba(79,195,247,0.32); border-color: #4fc3f7; }
-    .cam-group-label { font-size: 10px; color: #9bc7e2; text-align: center;
-      letter-spacing: 0.06em; text-transform: uppercase; margin-top: 2px; }
+    .wasa-cam-btn.wide { width: auto; padding: 0 6px; font-size: 9px;
+      font-weight: 600; letter-spacing: 0.04em; }
+    .wasa-cam-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
+    .wasa-cam-btn:active { background: rgba(79,195,247,0.30); border-color: #4fc3f7; }
     @media (max-width: 720px) {
-      #cam-controls { right: 8px; bottom: 50vh; }
-      body.panel-hidden #cam-controls { right: 8px; bottom: 16px; }
+      #wasa-cam { right: 8px; bottom: 50vh; }
+      body.panel-hidden #wasa-cam { right: 8px; bottom: 16px; }
     }
     #site-badge { position: fixed; bottom: 16px; left: 16px; z-index: 4;
       max-width: 380px; padding: 10px 14px; border-radius: 10px;
@@ -219,25 +223,23 @@
     </div>
   </aside>
 
-  <div id="cam-controls" aria-label="Camera controls">
-    <div class="cam-pan-grid">
-      <button class="cam-btn cam-pan-up" data-cam="pan-up" title="Pan up" aria-label="Pan up">&#9650;</button>
-      <button class="cam-btn cam-pan-left" data-cam="pan-left" title="Pan left" aria-label="Pan left">&#9664;</button>
-      <button class="cam-btn cam-pan-right" data-cam="pan-right" title="Pan right" aria-label="Pan right">&#9654;</button>
-      <button class="cam-btn cam-pan-down" data-cam="pan-down" title="Pan down" aria-label="Pan down">&#9660;</button>
+  <div id="wasa-cam" aria-label="Camera controls">
+    <div class="wasa-cam-pan">
+      <button class="wasa-cam-btn wasa-cam-pan-up" data-cam="pan-up" title="Pan up" aria-label="Pan up">&#9650;</button>
+      <button class="wasa-cam-btn wasa-cam-pan-left" data-cam="pan-left" title="Pan left" aria-label="Pan left">&#9664;</button>
+      <button class="wasa-cam-btn wasa-cam-pan-right" data-cam="pan-right" title="Pan right" aria-label="Pan right">&#9654;</button>
+      <button class="wasa-cam-btn wasa-cam-pan-down" data-cam="pan-down" title="Pan down" aria-label="Pan down">&#9660;</button>
     </div>
-    <div class="cam-group-label">Pan</div>
-    <div class="cam-row">
-      <button class="cam-btn" data-cam="rot-left" title="Rotate left" aria-label="Rotate left">&#8634;</button>
-      <button class="cam-btn" data-cam="rot-right" title="Rotate right" aria-label="Rotate right">&#8635;</button>
-      <button class="cam-btn" data-cam="tilt-up" title="Tilt up" aria-label="Tilt up">&#10514;</button>
-      <button class="cam-btn" data-cam="tilt-down" title="Tilt down" aria-label="Tilt down">&#10515;</button>
+    <div class="wasa-cam-row">
+      <button class="wasa-cam-btn" data-cam="rot-left" title="Rotate left" aria-label="Rotate left">&#8634;</button>
+      <button class="wasa-cam-btn" data-cam="rot-right" title="Rotate right" aria-label="Rotate right">&#8635;</button>
+      <button class="wasa-cam-btn" data-cam="tilt-up" title="Tilt up" aria-label="Tilt up">&#10514;</button>
+      <button class="wasa-cam-btn" data-cam="tilt-down" title="Tilt down" aria-label="Tilt down">&#10515;</button>
     </div>
-    <div class="cam-group-label">Rotate / Tilt</div>
-    <div class="cam-row">
-      <button class="cam-btn" data-cam="zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
-      <button class="cam-btn" data-cam="zoom-out" title="Zoom out" aria-label="Zoom out">&minus;</button>
-      <button class="cam-btn wide" data-cam="reset" title="Reset view" aria-label="Reset view">Reset</button>
+    <div class="wasa-cam-row">
+      <button class="wasa-cam-btn" data-cam="zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
+      <button class="wasa-cam-btn" data-cam="zoom-out" title="Zoom out" aria-label="Zoom out">&minus;</button>
+      <button class="wasa-cam-btn wide" data-cam="reset" title="Reset view" aria-label="Reset view">reset</button>
     </div>
   </div>
 
