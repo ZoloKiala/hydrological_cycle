@@ -294,10 +294,11 @@ const interventions = [
     entityById.set(idx, entity);
   });
 
-  // ---------- SCALE BAR + SEARCH + COORDS ----------
-  // Cam-controls + north arrow removed per request — Cesium's native
-  // mouse/touch input covers pan / tilt / rotate / zoom.
+  // ---------- SCALE BAR + NORTH ARROW + SEARCH + COORDS ----------
+  // Cam-controls removed (Cesium's native input covers pan/tilt/zoom).
+  // The north arrow remains as a lightweight orientation cue.
   setupScaleBar(viewer);
+  setupNorthArrow(viewer);
   setupLocationSearch(viewer);
   setupCursorCoordinates(viewer);
 
@@ -908,3 +909,31 @@ function setupCursorCoordinates(viewer) {
 // setupCamControls removed — the on-screen camera nav cluster is gone.
 // Cesium's native mouse/touch input (drag = pan, right-drag = tilt,
 // scroll = zoom) covers the same functionality without DOM clutter.
+
+// North arrow: rotate the SVG so the red half always points to true
+// north. Click flies the camera back to heading: 0 while keeping the
+// current position and tilt.
+function setupNorthArrow(viewer) {
+  const btn = document.getElementById('north-arrow');
+  if (!btn) return;
+  const svg = btn.querySelector('svg');
+  if (!svg) return;
+
+  btn.addEventListener('click', () => {
+    const cam = viewer.camera;
+    cam.flyTo({
+      destination: cam.positionWC.clone(),
+      orientation: { heading: 0, pitch: cam.pitch, roll: 0 },
+      duration: 0.8,
+    });
+  });
+
+  let lastTick = 0;
+  viewer.scene.postRender.addEventListener(() => {
+    const now = performance.now();
+    if (now - lastTick < 100) return;       // throttle to ~10 Hz
+    lastTick = now;
+    const deg = Cesium.Math.toDegrees(viewer.camera.heading);
+    svg.style.transform = 'rotate(' + (-deg).toFixed(1) + 'deg)';
+  });
+}

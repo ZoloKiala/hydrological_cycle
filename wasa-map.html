@@ -45,7 +45,18 @@
       color: #fff; text-decoration: none; font-weight: 600; font-size: 13px; }
     #panel-3d-link:hover { background: rgba(79,195,247,0.28); }
     /* On-screen camera nav cluster removed — Cesium's native mouse/touch
-       controls cover the same functionality. */
+       controls cover the same functionality. The north arrow stays as a
+       lightweight orientation cue. */
+    #north-arrow { position: fixed; top: 80px; left: 16px; z-index: 4;
+      width: 40px; height: 40px; border-radius: 50%;
+      background: rgba(7,28,41,0.78); border: 1px solid rgba(255,255,255,0.18);
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      backdrop-filter: blur(4px); padding: 0; }
+    #north-arrow svg { width: 32px; height: 32px; transition: transform 0.18s ease-out; }
+    #north-arrow:hover { background: rgba(7,28,41,0.95); }
+    @media (max-width: 720px) {
+      #north-arrow { top: 70px; left: 8px; }
+    }
     /* ---------- WALK MODE (first-person) ---------- */
     /* Hide other chrome so the FPS view is uncluttered. */
     body.walk-mode #map-panel,
@@ -159,7 +170,7 @@
     #scale-bar-bar { display: block; height: 4px; background: #fff;
       border-radius: 1px; margin-top: 3px; transition: width 0.2s; }
     /* ---------- NORTH ARROW ---------- */
-    /* North arrow removed alongside the cam-controls cluster. */
+    /* (north-arrow CSS now lives next to the cam-cluster comment above) */
     /* ---------- COORDINATES READOUT ---------- */
     /* Live cursor lat/lng readout. Sits ABOVE the scale bar at bottom-center
        (the scale bar's width changes with zoom, so they were colliding when
@@ -327,7 +338,14 @@
     <span id="scale-bar-bar" style="width:0"></span>
   </div>
 
-  <!-- North arrow removed alongside the camera controls cluster. -->
+  <!-- North arrow — rotates with the camera heading; click to face north. -->
+  <button id="north-arrow" type="button" title="Click to face north" aria-label="Face north">
+    <svg viewBox="0 0 40 40" aria-hidden="true">
+      <polygon points="20,4 26,21 20,18 14,21" fill="#ff5252"/>
+      <polygon points="20,36 14,21 20,24 26,21" fill="#cfe4f1"/>
+      <text x="20" y="15" text-anchor="middle" font-size="9" font-weight="700" fill="#fff" stroke="#0a1820" stroke-width="0.5">N</text>
+    </svg>
+  </button>
 
 
   <!-- Live lat/lng readout that follows the mouse cursor over the globe. -->
