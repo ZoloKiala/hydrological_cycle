@@ -113,7 +113,10 @@ const interventions = [
       'Restored wetlands and small check dams flatten flood peaks and extend dry-season base flow. ' +
       'The watershed acts like a sponge instead of a fast pipe to the river.',
     impact: 'Lower flood peaks, longer base flow',
-    image: 'https://loremflickr.com/640/240/wetland,marsh,river/all?lock=6',
+    // Wikimedia Commons photo of a stone check dam in May Be'ati, Ethiopia
+    // — concrete example of the "small check dam" green-infrastructure
+    // measure described on this card. (%27 is the URL-encoded apostrophe.)
+    image: "https://commons.wikimedia.org/wiki/Special:FilePath/Check%20dam%20in%20May%20Be%27ati.jpg?width=640",
     pos: [-15.7930, 35.0110],
     range: 500, heading: 70, pitch: -35,
   },
