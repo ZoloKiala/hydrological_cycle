@@ -49,7 +49,9 @@ const interventions = [
       'Replants tree cover on cleared mountain slopes, pumping moisture back into the atmosphere ' +
       'through transpiration and anchoring topsoil. Agroforestry rows mix trees with food crops.',
     impact: 'Recovers transpiration, recharges groundwater, anchors soil',
-    image: 'https://loremflickr.com/640/240/forest,tree-planting,africa/all?lock=1',
+    // Real Wikimedia Commons photo of agroforestry plots in Masaka, Uganda
+    // (Special:FilePath redirects to the stable upload.wikimedia.org URL).
+    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Agroforestry%20Masaka.jpg?width=640',
     pos: [-15.7795, 35.0015],
     range: 600, heading: 60, pitch: -35,
   },
