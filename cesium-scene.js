@@ -597,21 +597,43 @@ const interventions = [
   const mlyEmptyMsg = document.getElementById('mly-empty-msg');
   const mlyTokenNotice = document.getElementById('mly-token-notice');
 
+  // When Mapillary has no usable imagery near a site, fall back to the
+  // card's topical static photo. Centralised here so both the "no data" and
+  // "no token" branches use the same UI path.
+  const mlyContainer = document.getElementById('mly-container');
+  const mlyStatic = document.getElementById('mly-static');
+  function showStaticFallback(iv, reason) {
+    mlyStatic.src = iv.image;
+    mlyStatic.alt = iv.title;
+    mlyStatic.hidden = false;
+    mlyContainer.style.display = 'none';
+    if (reason) {
+      mlyEmptyMsg.textContent = reason;
+      mlyEmpty.hidden = false;
+      // Auto-dismiss the explainer after 5 s so the photo isn't covered for long.
+      setTimeout(() => { mlyEmpty.hidden = true; }, 5000);
+    }
+  }
+  function showMapillaryView() {
+    mlyStatic.hidden = true;
+    mlyStatic.removeAttribute('src');
+    mlyContainer.style.display = '';
+  }
+
   async function openStreetView(idx) {
     const iv = interventions[idx];
     const [lat, lng] = iv.pos;
 
-    // No token → show the bottom-right notice instead of opening the modal.
-    if (!mlyToken) {
-      mlyTokenNotice.style.display = 'block';
-      // Auto-dismiss after 8 s so it doesn't linger.
-      setTimeout(() => { mlyTokenNotice.style.display = 'none'; }, 8000);
-      return;
-    }
-
     mlyTitle.textContent = 'Street View — ' + iv.title;
     mlyEmpty.hidden = true;
     mlyOverlay.hidden = false;
+
+    // No token: still useful — show the topical photo and a one-line nudge
+    // toward the token setup. Skip the API call entirely.
+    if (!mlyToken) {
+      showStaticFallback(iv, 'No Mapillary token configured — showing the topical photo for this site instead. Use "Set token" in the cards panel to enable real Street View photos.');
+      return;
+    }
 
     // Search a ~250 m square for the nearest image. Mapillary's bbox order
     // is `west,south,east,north` (lng, lat, lng, lat).
@@ -629,11 +651,8 @@ const interventions = [
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       if (!data.data || !data.data.length) {
-        mlyEmptyMsg.textContent =
-          'Mapillary has no street-level photos within ~250 m of this site. '
-          + 'Try the "Fly to site" or "Walk here" buttons, or pick a card whose '
-          + 'marker sits closer to a road.';
-        mlyEmpty.hidden = false;
+        showStaticFallback(iv,
+          'No Mapillary photos within ~250 m of this site — showing the topical photo instead.');
         return;
       }
       // Prefer 360° panoramas if any exist — they give the true Street View feel.
@@ -641,11 +660,13 @@ const interventions = [
       imageId = (pano || data.data[0]).id;
     } catch (e) {
       console.error('[mapillary] lookup failed', e);
-      mlyEmptyMsg.textContent = 'Could not reach Mapillary: ' + e.message
-        + '. Check that your token is valid (format MLY|...).';
-      mlyEmpty.hidden = false;
+      showStaticFallback(iv,
+        'Mapillary lookup failed (' + e.message + ') — showing the topical photo instead.');
       return;
     }
+
+    // We have a Mapillary image ID — switch back to the live viewer.
+    showMapillaryView();
 
     // Mount the viewer once; subsequent calls just moveTo() the new image
     // so we don't tear down WebGL contexts.
@@ -657,11 +678,14 @@ const interventions = [
       });
     } else if (mlyViewer) {
       try { await mlyViewer.moveTo(imageId); }
-      catch (e) { console.warn('[mapillary] moveTo failed', e); }
+      catch (e) {
+        console.warn('[mapillary] moveTo failed', e);
+        showStaticFallback(iv, 'Could not load that Mapillary image — showing the topical photo instead.');
+      }
     } else {
-      // Library failed to load (network/CDN issue).
-      mlyEmptyMsg.textContent = 'Mapillary library did not load. Reload the page.';
-      mlyEmpty.hidden = false;
+      // Library failed to load (network/CDN issue) — graceful fallback.
+      showStaticFallback(iv,
+        'Mapillary library did not load — showing the topical photo instead.');
     }
   }
 

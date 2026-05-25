@@ -283,6 +283,12 @@
     }
     .cesium-infoBox-title { color: #fff !important; background: rgba(255,213,79,0.18) !important; }
     .cesium-infoBox iframe { background: transparent !important; }
+    /* Static fallback photo inside the Street View modal — covers the same
+       area as the Mapillary viewer container. object-fit:contain so the
+       photo isn't cropped on weird aspect ratios. */
+    #mly-static { position: absolute; inset: 0; width: 100%; height: 100%;
+      object-fit: contain; background: #000; }
+    #mly-static[hidden] { display: none; }
     /* The token notice also lives at top-left; nudge it lower when the
        InfoBox is visible so the two don't stack. */
     .cesium-infoBox-visible ~ #token-notice { top: auto !important; bottom: 100px !important; }
@@ -355,6 +361,9 @@
        the "Street View" button on any WASA card. -->
   <div id="mly-overlay" hidden>
     <div id="mly-container"></div>
+    <!-- Static topical photo shown as a fallback when Mapillary has no
+         relevant imagery for the selected site. -->
+    <img id="mly-static" alt="" hidden />
     <div class="mly-hud">
       <span id="mly-title">Street View</span>
       <button id="mly-close" type="button">x Close</button>
