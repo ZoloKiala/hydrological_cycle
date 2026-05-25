@@ -362,6 +362,7 @@ const interventions = [
   // the user a sense of being inside the watershed. Exits on Esc or the
   // Exit button. Re-attaches Cesium's default mouse interactions on exit.
   let walking = false;
+  let walkingFromIdx = null;     // which intervention triggered walk mode
   const keysDown = new Set();
   let walkRaf = 0;
   let savedCamControls = null;
@@ -388,6 +389,7 @@ const interventions = [
     const eyeH = groundH + 8;
 
     walking = true;
+    walkingFromIdx = idx;          // remember the origin for exit fly-back
     document.body.classList.add('walk-mode');
     document.getElementById('walk-title-name').textContent = iv.title;
 
@@ -408,11 +410,24 @@ const interventions = [
     walking = false;
     document.body.classList.remove('walk-mode');
     detachFps();
-    // Fly back to the overview camera.
-    viewer.camera.flyTo({
-      destination: Cesium.Cartesian3.fromDegrees(CENTRE.lng, CENTRE.lat - 0.015, 4500),
-      orientation: { heading: 0, pitch: Cesium.Math.toRadians(-55), roll: 0 },
+    // Fly back to the intervention site we walked at (same framing as the
+    // "Fly to site" button). If we somehow lost the index, fall back to the
+    // watershed overview.
+    const idx = walkingFromIdx;
+    walkingFromIdx = null;
+    if (idx !== null && interventions[idx]) {
+      focusIntervention(idx);
+      return;
+    }
+    const positions = WATERSHED.map(([lat, lng]) =>
+      Cesium.Cartesian3.fromDegrees(lng, lat)
+    );
+    const sphere = Cesium.BoundingSphere.fromPoints(positions);
+    viewer.camera.flyToBoundingSphere(sphere, {
       duration: 1.4,
+      offset: new Cesium.HeadingPitchRange(
+        0, Cesium.Math.toRadians(-55), sphere.radius * 3.0
+      ),
     });
   }
 
