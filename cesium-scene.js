@@ -264,6 +264,12 @@ const interventions = [
     entityById.set(idx, entity);
   });
 
+  // ---------- ON-SCREEN CAMERA NAV ----------
+  // Click for one step, click-and-hold for continuous motion. Useful on
+  // touch devices and trackpads where Cesium's default mouse interactions
+  // (drag-to-pan, right-drag-to-tilt, scroll-to-zoom) aren't ergonomic.
+  setupCamControls(viewer);
+
   // ---------- INITIAL CAMERA ----------
   // Wide overview tilted toward the north, looking down at the watershed.
   viewer.camera.flyTo({
@@ -356,4 +362,72 @@ function buildCards() {
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// Wire the bottom-right cam-controls cluster to Cesium's camera APIs. Each
+// button has a `data-cam` action; we map the action to a per-frame step
+// while the button is held down (pointerdown -> repeat -> pointerup).
+function setupCamControls(viewer) {
+  const root = document.getElementById('cam-controls');
+  if (!root) return;
+
+  // Step sizes scale with current altitude so the same button feels
+  // proportional whether you're looking at the whole watershed or a single
+  // farm pond.
+  function panMeters() {
+    const h = Math.max(50, viewer.camera.positionCartographic.height);
+    return Math.max(20, h / 30);
+  }
+  function zoomMeters() {
+    const h = Math.max(50, viewer.camera.positionCartographic.height);
+    return Math.max(20, h / 8);
+  }
+  const TILT = Cesium.Math.toRadians(2);
+  const ROT = Cesium.Math.toRadians(4);
+
+  // Initial overview camera — captured once so the Reset button can return.
+  const initial = {
+    destination: Cesium.Cartesian3.fromDegrees(CENTRE.lng, CENTRE.lat - 0.015, 4500),
+    heading: 0, pitch: Cesium.Math.toRadians(-55),
+  };
+
+  const actions = {
+    'pan-up':    () => viewer.camera.moveUp(panMeters()),
+    'pan-down':  () => viewer.camera.moveDown(panMeters()),
+    'pan-left':  () => viewer.camera.moveLeft(panMeters()),
+    'pan-right': () => viewer.camera.moveRight(panMeters()),
+    'rot-left':  () => viewer.camera.lookLeft(ROT),
+    'rot-right': () => viewer.camera.lookRight(ROT),
+    'tilt-up':   () => viewer.camera.lookUp(TILT),
+    'tilt-down': () => viewer.camera.lookDown(TILT),
+    'zoom-in':   () => viewer.camera.zoomIn(zoomMeters()),
+    'zoom-out':  () => viewer.camera.zoomOut(zoomMeters()),
+    'reset':     () => viewer.camera.flyTo({
+      destination: initial.destination,
+      orientation: { heading: initial.heading, pitch: initial.pitch, roll: 0 },
+      duration: 1.2,
+    }),
+  };
+
+  root.querySelectorAll('.cam-btn').forEach((btn) => {
+    const action = actions[btn.dataset.cam];
+    if (!action) return;
+    // Repeat-while-held using requestAnimationFrame for smooth continuous
+    // motion. The reset button only fires once on release.
+    let raf = 0, holding = false;
+    const stop = () => { holding = false; if (raf) cancelAnimationFrame(raf); raf = 0; };
+    const tick = () => { if (!holding) return; action(); raf = requestAnimationFrame(tick); };
+    if (btn.dataset.cam === 'reset') {
+      btn.addEventListener('click', action);
+    } else {
+      btn.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        holding = true;
+        action();                    // one-step immediately so a quick tap registers
+        raf = requestAnimationFrame(tick);
+      });
+      ['pointerup', 'pointerleave', 'pointercancel', 'blur'].forEach((ev) =>
+        btn.addEventListener(ev, stop));
+    }
+  });
 }

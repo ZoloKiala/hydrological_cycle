@@ -24,12 +24,49 @@
     .cesium-viewer-bottom { left: 16px !important; bottom: 100px !important; }
     #brand-bar { z-index: 4; }
     #site-toggle { position: fixed; top: 14px; right: 16px; z-index: 5;
-      padding: 8px 14px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.4);
-      background: rgba(7, 28, 41, 0.78); color: #fff; cursor: pointer;
-      font-size: 13px; font-weight: 600; letter-spacing: 0.02em;
+      padding: 10px 16px; border-radius: 24px; border: 1px solid rgba(79,195,247,0.55);
+      background: rgba(79, 195, 247, 0.18); color: #fff; cursor: pointer;
+      font-size: 14px; font-weight: 600; letter-spacing: 0.02em;
       backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-      text-decoration: none; }
-    #site-toggle:hover { background: rgba(7, 28, 41, 0.92); }
+      text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.35); }
+    #site-toggle:hover { background: rgba(79, 195, 247, 0.32); }
+    /* Mirror link inside the WASA panel for users who don't notice the top
+       button. Styled like the other cards so it sits cleanly above them. */
+    #panel-3d-link { display: flex; align-items: center; justify-content: center;
+      gap: 8px; padding: 10px 12px; margin-bottom: 14px; border-radius: 10px;
+      border: 1px solid rgba(79,195,247,0.5); background: rgba(79,195,247,0.15);
+      color: #fff; text-decoration: none; font-weight: 600; font-size: 13px; }
+    #panel-3d-link:hover { background: rgba(79,195,247,0.28); }
+    /* On-screen camera navigation (matches the Three.js scene's cam-controls
+       idiom). Bottom-right cluster: pan grid + rotate row + tilt row + zoom row
+       + reset row. Each button supports click for one step and hold for
+       continuous motion — wired in cesium-scene.js. */
+    #cam-controls { position: fixed; right: 392px; bottom: 16px; z-index: 4;
+      display: flex; flex-direction: column; gap: 6px; padding: 8px;
+      background: rgba(7,28,41,0.78); border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 10px; backdrop-filter: blur(6px); }
+    body.panel-hidden #cam-controls { right: 16px; }
+    .cam-row { display: flex; gap: 4px; justify-content: center; }
+    .cam-pan-grid { display: grid; grid-template-columns: repeat(3, 28px);
+      grid-template-rows: repeat(3, 28px); gap: 2px; justify-content: center; }
+    .cam-pan-grid .cam-pan-up    { grid-column: 2; grid-row: 1; }
+    .cam-pan-grid .cam-pan-left  { grid-column: 1; grid-row: 2; }
+    .cam-pan-grid .cam-pan-right { grid-column: 3; grid-row: 2; }
+    .cam-pan-grid .cam-pan-down  { grid-column: 2; grid-row: 3; }
+    .cam-btn { width: 28px; height: 28px; border-radius: 6px;
+      border: 1px solid rgba(255,255,255,0.22); background: rgba(255,255,255,0.06);
+      color: #fff; cursor: pointer; font-size: 14px; line-height: 1; padding: 0;
+      user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+    .cam-btn.wide { width: auto; padding: 0 10px; font-size: 11px; font-weight: 600; }
+    .cam-btn:hover { background: rgba(255,255,255,0.14); }
+    .cam-btn:active { background: rgba(79,195,247,0.32); border-color: #4fc3f7; }
+    .cam-group-label { font-size: 10px; color: #9bc7e2; text-align: center;
+      letter-spacing: 0.06em; text-transform: uppercase; margin-top: 2px; }
+    @media (max-width: 720px) {
+      #cam-controls { right: 8px; bottom: 50vh; }
+      body.panel-hidden #cam-controls { right: 8px; bottom: 16px; }
+    }
     #site-badge { position: fixed; bottom: 16px; left: 16px; z-index: 4;
       max-width: 380px; padding: 10px 14px; border-radius: 10px;
       background: rgba(7, 28, 41, 0.82); color: #cfe4f1;
@@ -143,7 +180,9 @@
     </div>
   </header>
 
-  <a id="site-toggle" href="index.html" title="Open the Three.js water-cycle scene">3D scene</a>
+  <a id="site-toggle" href="index.html" title="Open the Three.js water-cycle scene">
+    <span aria-hidden="true">&larr;</span> Back to 3D scene
+  </a>
 
   <div id="cesiumContainer"></div>
 
@@ -168,6 +207,10 @@
       southern Malawi. Each marker is one of the eight WASA interventions on a real 3D globe — click
       a card to fly the camera in.
     </p>
+    <a id="panel-3d-link" href="index.html"
+       title="Compare this satellite view with the stylised Three.js scene">
+      <span aria-hidden="true">&larr;</span> Open the 3D water-cycle scene
+    </a>
     <div id="map-cards"></div>
     <div class="map-legend">
       <div class="row"><span class="swatch" style="background:#ffd54f"></span>WASA intervention</div>
@@ -175,6 +218,28 @@
       <div class="row"><span class="swatch" style="background:rgba(255,213,79,0.18); border:1px dashed #ffd54f"></span>Watershed boundary</div>
     </div>
   </aside>
+
+  <div id="cam-controls" aria-label="Camera controls">
+    <div class="cam-pan-grid">
+      <button class="cam-btn cam-pan-up" data-cam="pan-up" title="Pan up" aria-label="Pan up">&#9650;</button>
+      <button class="cam-btn cam-pan-left" data-cam="pan-left" title="Pan left" aria-label="Pan left">&#9664;</button>
+      <button class="cam-btn cam-pan-right" data-cam="pan-right" title="Pan right" aria-label="Pan right">&#9654;</button>
+      <button class="cam-btn cam-pan-down" data-cam="pan-down" title="Pan down" aria-label="Pan down">&#9660;</button>
+    </div>
+    <div class="cam-group-label">Pan</div>
+    <div class="cam-row">
+      <button class="cam-btn" data-cam="rot-left" title="Rotate left" aria-label="Rotate left">&#8634;</button>
+      <button class="cam-btn" data-cam="rot-right" title="Rotate right" aria-label="Rotate right">&#8635;</button>
+      <button class="cam-btn" data-cam="tilt-up" title="Tilt up" aria-label="Tilt up">&#10514;</button>
+      <button class="cam-btn" data-cam="tilt-down" title="Tilt down" aria-label="Tilt down">&#10515;</button>
+    </div>
+    <div class="cam-group-label">Rotate / Tilt</div>
+    <div class="cam-row">
+      <button class="cam-btn" data-cam="zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
+      <button class="cam-btn" data-cam="zoom-out" title="Zoom out" aria-label="Zoom out">&minus;</button>
+      <button class="cam-btn wide" data-cam="reset" title="Reset view" aria-label="Reset view">Reset</button>
+    </div>
+  </div>
 
   <div id="site-badge">
     <strong>Demo location</strong> · centred on a <em>dummy point</em> in the Shire River basin
