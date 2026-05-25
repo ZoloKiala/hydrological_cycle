@@ -390,7 +390,6 @@ const interventions = [
       enableTranslate: ssc.enableTranslate,
       enableTilt: ssc.enableTilt,
       lookEventTypes: ssc.lookEventTypes,
-      far: viewer.camera.frustum.far,
       fogDensity: scene.fog.density,
       fogEnabled: scene.fog.enabled,
     };
@@ -401,12 +400,12 @@ const interventions = [
     ssc.lookEventTypes = [Cesium.CameraEventType.LEFT_DRAG];
     ssc.minimumZoomDistance = 0.5;
 
-    // Clip the visible distance to ~1.2 km — beyond that the imagery is the
-    // same z=17 tile stretched, which looks terrible from ground level.
-    viewer.camera.frustum.far = 1200;
-    // Heavy fog hides the blurry far field.
+    // Heavy fog fades the stretched-tile horizon into atmospheric haze. We
+    // deliberately do NOT clip the far frustum — Cesium's sky atmosphere is
+    // rendered as a sphere far past the surface, so any low far-clip value
+    // also clips the sky and leaves the upper half of the screen black.
     scene.fog.enabled = true;
-    scene.fog.density = 0.0015;
+    scene.fog.density = 0.004;
 
     window.addEventListener('keydown', onWalkKeyDown);
     window.addEventListener('keyup', onWalkKeyUp);
@@ -421,7 +420,6 @@ const interventions = [
       ssc.enableTranslate = savedCamControls.enableTranslate;
       ssc.enableTilt = savedCamControls.enableTilt;
       ssc.lookEventTypes = savedCamControls.lookEventTypes;
-      viewer.camera.frustum.far = savedCamControls.far;
       scene.fog.density = savedCamControls.fogDensity;
       scene.fog.enabled = savedCamControls.fogEnabled;
       savedCamControls = null;
