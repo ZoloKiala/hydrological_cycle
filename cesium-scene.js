@@ -37,10 +37,13 @@ const RIVER = [
 // `range` (metres above ground) and `pitch` (degrees, negative = look down)
 // are tuned for Cesium's flyToBoundingSphere / lookAt style flight.
 //
-// `image` URLs use LoremFlickr — a free service that returns real, CC-licensed
-// Flickr photos matching the supplied tags. The `lock` query param pins each
-// card to a specific photo (otherwise we'd get a new one every reload). When
-// you have real WASA-specific photos, replace each per-card URL.
+// `image` URLs are a mix of LoremFlickr (tag-matched Flickr placeholders),
+// Wikimedia Commons (real topical photos via Special:FilePath), and bundled
+// local files (via the `new URL(./...)` pattern Vite recognises at build
+// time — same file works under the plain dev server and the hashed prod
+// bundle). Swap individual entries with real WASA photos as you collect them.
+const afforestationImage = new URL('./afforestation.jpg', import.meta.url).href;
+
 const interventions = [
   {
     icon: 'A',
@@ -49,9 +52,9 @@ const interventions = [
       'Replants tree cover on cleared mountain slopes, pumping moisture back into the atmosphere ' +
       'through transpiration and anchoring topsoil. Agroforestry rows mix trees with food crops.',
     impact: 'Recovers transpiration, recharges groundwater, anchors soil',
-    // Real Wikimedia Commons photo of agroforestry plots in Masaka, Uganda
-    // (Special:FilePath redirects to the stable upload.wikimedia.org URL).
-    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Agroforestry%20Masaka.jpg?width=640',
+    // Local bundled photo (afforestation.jpg at repo root). Vite picks it
+    // up via the new URL(./...) pattern and bundles to dist/assets/.
+    image: afforestationImage,
     pos: [-15.7795, 35.0015],
     range: 600, heading: 60, pitch: -35,
   },
@@ -73,7 +76,9 @@ const interventions = [
       'Small earthen cross-ridges trap rainfall where it falls; soil rippers break compacted layers ' +
       'so water moves into the root zone. Crops survive erratic-rainfall seasons.',
     impact: 'In-situ rainwater capture, deeper percolation',
-    image: 'https://loremflickr.com/640/240/terrace,farming,contour/all?lock=3',
+    // Wikimedia Commons photo from Category:Contour_farming — actual
+    // contour-ridge field, the closest visual analogue to tied ridges.
+    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Contour%20Farming01%20(23972931847).jpg?width=640',
     pos: [-15.7880, 35.0090],
     range: 400, heading: 340, pitch: -40,
   },
