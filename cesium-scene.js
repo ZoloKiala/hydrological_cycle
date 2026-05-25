@@ -317,8 +317,135 @@ const interventions = [
     });
   }
 
+  // ---------- WALK MODE (first-person) ----------
+  // Drops the camera to ~2 m above ground at an intervention site and
+  // switches input to FPS-style: drag-to-look + WASD to walk. No real ground
+  // photos — just the satellite tile draped on the terrain — but it gives
+  // the user a sense of being inside the watershed. Exits on Esc or the
+  // Exit button. Re-attaches Cesium's default mouse interactions on exit.
+  let walking = false;
+  const keysDown = new Set();
+  let walkRaf = 0;
+  let savedCamControls = null;
+
+  async function enterWalkMode(idx) {
+    const iv = interventions[idx];
+    const [lat, lng] = iv.pos;
+    // If we have real terrain (Ion), sample the ground height so we stand
+    // 2 m above the actual surface. With ellipsoid terrain we just use 2 m
+    // above the WGS84 ellipsoid — close enough at z = 0.
+    let groundH = 0;
+    try {
+      const samples = await Cesium.sampleTerrainMostDetailed(
+        viewer.terrainProvider, [Cesium.Cartographic.fromDegrees(lng, lat)]
+      );
+      if (samples && samples[0] && Number.isFinite(samples[0].height)) {
+        groundH = samples[0].height;
+      }
+    } catch (e) { /* ellipsoid provider throws; fall back to 0 */ }
+    const eyeH = groundH + 2;     // ~2 m above ground = eye height
+
+    walking = true;
+    document.body.classList.add('walk-mode');
+    document.getElementById('walk-title-name').textContent = iv.title;
+
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(lng, lat, eyeH),
+      orientation: {
+        heading: Cesium.Math.toRadians(iv.heading || 0),
+        pitch: Cesium.Math.toRadians(-5),          // slight downward gaze, more natural
+        roll: 0,
+      },
+      duration: 1.4,
+      complete: () => attachFps(),
+    });
+  }
+
+  function exitWalkMode() {
+    if (!walking) return;
+    walking = false;
+    document.body.classList.remove('walk-mode');
+    detachFps();
+    // Fly back to the overview camera.
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(CENTRE.lng, CENTRE.lat - 0.015, 4500),
+      orientation: { heading: 0, pitch: Cesium.Math.toRadians(-55), roll: 0 },
+      duration: 1.4,
+    });
+  }
+
+  function attachFps() {
+    const ssc = viewer.scene.screenSpaceCameraController;
+    // Save and swap mouse-input bindings: instead of "drag-to-rotate-globe"
+    // (target-orbit), use "drag-to-look" (free first-person turn).
+    savedCamControls = {
+      enableRotate: ssc.enableRotate,
+      enableTranslate: ssc.enableTranslate,
+      enableTilt: ssc.enableTilt,
+      lookEventTypes: ssc.lookEventTypes,
+    };
+    ssc.enableRotate = false;
+    ssc.enableTranslate = false;
+    ssc.enableTilt = false;
+    ssc.enableLook = true;
+    ssc.lookEventTypes = [Cesium.CameraEventType.LEFT_DRAG];
+    // Tighten zoom step so wheel doesn't blast you out of walking range.
+    ssc.minimumZoomDistance = 0.5;
+
+    window.addEventListener('keydown', onWalkKeyDown);
+    window.addEventListener('keyup', onWalkKeyUp);
+    walkRaf = requestAnimationFrame(walkLoop);
+  }
+
+  function detachFps() {
+    const ssc = viewer.scene.screenSpaceCameraController;
+    if (savedCamControls) {
+      ssc.enableRotate = savedCamControls.enableRotate;
+      ssc.enableTranslate = savedCamControls.enableTranslate;
+      ssc.enableTilt = savedCamControls.enableTilt;
+      ssc.lookEventTypes = savedCamControls.lookEventTypes;
+      savedCamControls = null;
+    }
+    window.removeEventListener('keydown', onWalkKeyDown);
+    window.removeEventListener('keyup', onWalkKeyUp);
+    if (walkRaf) cancelAnimationFrame(walkRaf);
+    walkRaf = 0;
+    keysDown.clear();
+  }
+
+  function onWalkKeyDown(e) {
+    if (e.key === 'Escape') { exitWalkMode(); e.preventDefault(); return; }
+    const k = e.key.toLowerCase();
+    const tracked = ['w','a','s','d','q','e','arrowup','arrowdown','arrowleft','arrowright','shift'];
+    if (tracked.includes(k)) {
+      keysDown.add(k);
+      e.preventDefault();
+    }
+  }
+  function onWalkKeyUp(e) {
+    keysDown.delete(e.key.toLowerCase());
+  }
+
+  function walkLoop() {
+    if (!walking) return;
+    const cam = viewer.camera;
+    // Walk speed: ~1.4 m/s ≈ 0.023 m per frame at 60 Hz. Hold shift to run.
+    const run = keysDown.has('shift') ? 3.0 : 1.0;
+    const step = 0.03 * run;     // metres per frame
+    if (keysDown.has('w') || keysDown.has('arrowup'))    cam.moveForward(step);
+    if (keysDown.has('s') || keysDown.has('arrowdown'))  cam.moveBackward(step);
+    if (keysDown.has('a') || keysDown.has('arrowleft'))  cam.moveLeft(step);
+    if (keysDown.has('d') || keysDown.has('arrowright')) cam.moveRight(step);
+    if (keysDown.has('q'))                                cam.moveDown(step * 0.5);
+    if (keysDown.has('e'))                                cam.moveUp(step * 0.5);
+    walkRaf = requestAnimationFrame(walkLoop);
+  }
+
+  document.getElementById('walk-exit-btn').addEventListener('click', exitWalkMode);
+
   // Expose for the cards builder; also used by the marker click below.
   window.__focusIntervention = focusIntervention;
+  window.__walkAt = enterWalkMode;
 
   // Marker clicks: Cesium's default selection already opens the info box on
   // click, so we just additionally fly the camera in.
@@ -366,7 +493,16 @@ function buildCards() {
       if (window.__focusIntervention) window.__focusIntervention(idx);
     });
 
-    card.append(head, desc, impact, btn);
+    const walkBtn = document.createElement('button');
+    walkBtn.className = 'map-walk-btn';
+    walkBtn.type = 'button';
+    walkBtn.textContent = 'Walk here';
+    walkBtn.title = 'Drop the camera to ground level and walk around (WASD / drag to look / Esc to exit)';
+    walkBtn.addEventListener('click', () => {
+      if (window.__walkAt) window.__walkAt(idx);
+    });
+
+    card.append(head, desc, impact, btn, walkBtn);
     frag.appendChild(card);
   });
   container.replaceChildren(frag);
