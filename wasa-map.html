@@ -44,43 +44,11 @@
       border: 1px solid rgba(79,195,247,0.5); background: rgba(79,195,247,0.15);
       color: #fff; text-decoration: none; font-weight: 600; font-size: 13px; }
     #panel-3d-link:hover { background: rgba(79,195,247,0.28); }
-    /* On-screen camera navigation for the Cesium scene. Namespaced under
-       #wasa-cam / .wasa-cam-* on purpose — style.css already defines
-       #cam-controls + .cam-btn with the Three.js scene's heavy light-blue
-       look, so reusing those names would inherit the wrong theme. Goal
-       here is small + non-salient: the controls live faintly at the
-       bottom edge and brighten only on hover. */
-    /* Nav cluster + north arrow live in the top-left column under the brand
-       bar. Cesium InfoBox is pushed down (see below) so they don't overlap. */
-    #wasa-cam { position: fixed; top: 80px; left: 16px; z-index: 4;
-      display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 5px 6px;
-      background: rgba(7,28,41,0.55); border: 1px solid rgba(255,255,255,0.10);
-      border-radius: 8px; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
-      opacity: 0.55; transition: opacity 0.18s; }
-    #wasa-cam:hover, #wasa-cam:focus-within { opacity: 1; }
-    .wasa-cam-pan { display: grid; grid-template-columns: repeat(3, 22px);
-      grid-template-rows: repeat(3, 22px); gap: 2px; }
-    .wasa-cam-pan .wasa-cam-pan-up    { grid-column: 2; grid-row: 1; }
-    .wasa-cam-pan .wasa-cam-pan-left  { grid-column: 1; grid-row: 2; }
-    .wasa-cam-pan .wasa-cam-pan-right { grid-column: 3; grid-row: 2; }
-    .wasa-cam-pan .wasa-cam-pan-down  { grid-column: 2; grid-row: 3; }
-    .wasa-cam-row { display: flex; gap: 2px; justify-content: center; }
-    .wasa-cam-btn { width: 22px; height: 22px; border-radius: 4px;
-      border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.04);
-      color: #cfe4f1; cursor: pointer; font-size: 10px; line-height: 1; padding: 0;
-      display: inline-flex; align-items: center; justify-content: center;
-      user-select: none; -webkit-user-select: none; touch-action: manipulation; }
-    .wasa-cam-btn.wide { width: auto; padding: 0 6px; font-size: 9px;
-      font-weight: 600; letter-spacing: 0.04em; }
-    .wasa-cam-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
-    .wasa-cam-btn:active { background: rgba(79,195,247,0.30); border-color: #4fc3f7; }
-    @media (max-width: 720px) {
-      #wasa-cam { top: 70px; left: 8px; }
-    }
+    /* On-screen camera nav cluster removed — Cesium's native mouse/touch
+       controls cover the same functionality. */
     /* ---------- WALK MODE (first-person) ---------- */
     /* Hide other chrome so the FPS view is uncluttered. */
     body.walk-mode #map-panel,
-    body.walk-mode #wasa-cam,
     body.walk-mode #site-toggle,
     body.walk-mode #brand-bar,
     body.walk-mode #site-badge,
@@ -191,16 +159,7 @@
     #scale-bar-bar { display: block; height: 4px; background: #fff;
       border-radius: 1px; margin-top: 3px; transition: width 0.2s; }
     /* ---------- NORTH ARROW ---------- */
-    #north-arrow { position: fixed; top: 80px; left: 108px; z-index: 4;
-      width: 38px; height: 38px; border-radius: 50%;
-      background: rgba(7,28,41,0.78); border: 1px solid rgba(255,255,255,0.18);
-      cursor: pointer; display: flex; align-items: center; justify-content: center;
-      backdrop-filter: blur(4px); padding: 0; }
-    #north-arrow svg { width: 30px; height: 30px; transition: transform 0.18s ease-out; }
-    #north-arrow:hover { background: rgba(7,28,41,0.95); }
-    @media (max-width: 720px) {
-      #north-arrow { top: 70px; left: 92px; }
-    }
+    /* North arrow removed alongside the cam-controls cluster. */
     /* ---------- COORDINATES READOUT ---------- */
     /* Live cursor lat/lng readout. Sits ABOVE the scale bar at bottom-center
        (the scale bar's width changes with zoom, so they were colliding when
@@ -300,7 +259,7 @@
     .cesium-infoBox {
       left: 16px !important;
       right: auto !important;
-      top: 210px !important;          /* sit below the top-left nav cluster + arrow */
+      top: 96px !important;
       width: 340px !important;
       max-width: calc(100vw - 392px) !important;    /* never reach the right panel */
       max-height: calc(100vh - 320px) !important;     /* leave room for token notice + site badge below */
@@ -368,14 +327,8 @@
     <span id="scale-bar-bar" style="width:0"></span>
   </div>
 
-  <!-- North arrow — click to reset the camera heading to true north. -->
-  <button id="north-arrow" type="button" title="Click to face north" aria-label="Face north">
-    <svg viewBox="0 0 40 40" aria-hidden="true">
-      <polygon points="20,4 26,21 20,18 14,21" fill="#ff5252"/>
-      <polygon points="20,36 14,21 20,24 26,21" fill="#cfe4f1"/>
-      <text x="20" y="15" text-anchor="middle" font-size="9" font-weight="700" fill="#fff" stroke="#0a1820" stroke-width="0.5">N</text>
-    </svg>
-  </button>
+  <!-- North arrow removed alongside the camera controls cluster. -->
+
 
   <!-- Live lat/lng readout that follows the mouse cursor over the globe. -->
   <div id="cursor-coords" hidden>lat —, lon —</div>
@@ -465,25 +418,9 @@
     </div>
   </aside>
 
-  <div id="wasa-cam" aria-label="Camera controls">
-    <div class="wasa-cam-pan">
-      <button class="wasa-cam-btn wasa-cam-pan-up" data-cam="pan-up" title="Pan up" aria-label="Pan up">&#9650;</button>
-      <button class="wasa-cam-btn wasa-cam-pan-left" data-cam="pan-left" title="Pan left" aria-label="Pan left">&#9664;</button>
-      <button class="wasa-cam-btn wasa-cam-pan-right" data-cam="pan-right" title="Pan right" aria-label="Pan right">&#9654;</button>
-      <button class="wasa-cam-btn wasa-cam-pan-down" data-cam="pan-down" title="Pan down" aria-label="Pan down">&#9660;</button>
-    </div>
-    <div class="wasa-cam-row">
-      <button class="wasa-cam-btn" data-cam="rot-left" title="Rotate left" aria-label="Rotate left">&#8634;</button>
-      <button class="wasa-cam-btn" data-cam="rot-right" title="Rotate right" aria-label="Rotate right">&#8635;</button>
-      <button class="wasa-cam-btn" data-cam="tilt-up" title="Tilt up" aria-label="Tilt up">&#10514;</button>
-      <button class="wasa-cam-btn" data-cam="tilt-down" title="Tilt down" aria-label="Tilt down">&#10515;</button>
-    </div>
-    <div class="wasa-cam-row">
-      <button class="wasa-cam-btn" data-cam="zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
-      <button class="wasa-cam-btn" data-cam="zoom-out" title="Zoom out" aria-label="Zoom out">&minus;</button>
-      <button class="wasa-cam-btn wide" data-cam="reset" title="Reset view" aria-label="Reset view">reset</button>
-    </div>
-  </div>
+  <!-- Cam-controls + north arrow removed — Cesium's native mouse/touch
+       controls (drag = pan, right-drag = tilt, scroll = zoom) cover this. -->
+
 
   <div id="site-badge">
     <strong>Demo location</strong> · centred on <em>Blantyre, Malawi</em>
