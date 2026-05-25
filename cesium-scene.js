@@ -472,14 +472,20 @@ const interventions = [
   // #mly-overlay modal. Free tokens at mapillary.com/dashboard/developers
   // (no billing).
   //
-  // Token resolution:
+  // Token resolution priority:
   //  1. URL param ?mapillary_token=MLY|...  → saved to localStorage and
   //     stripped from the address bar so it doesn't end up in shared links.
-  //  2. localStorage key `mapillary_token`  → token sticks across visits.
-  //  3. None                                → user is prompted via the
-  //     notice's "Set token" button.
+  //  2. localStorage key `mapillary_token`  → per-user token sticks across visits.
+  //  3. __MAPILLARY_TOKEN__                 → site-wide token baked into the
+  //     bundle at build time from the GitHub Actions secret VITE_MAPILLARY_TOKEN.
+  //     This is PUBLIC (shipped in the JS) — Mapillary referrer restriction
+  //     on the token is what makes it safe to leave on a public site.
+  //  4. None                                → user can paste their own via
+  //     the "Set token" button in the notice.
   const MLY_TOKEN_KEY = 'mapillary_token';
+  const BUILD_TIME_TOKEN = typeof __MAPILLARY_TOKEN__ !== 'undefined' ? __MAPILLARY_TOKEN__ : '';
   let mlyToken = '';
+  let usingSiteDefault = false;
   (function loadToken() {
     const urlToken = new URLSearchParams(location.search).get('mapillary_token');
     if (urlToken) {
@@ -492,15 +498,30 @@ const interventions = [
       history.replaceState(null, '', u.toString());
       return;
     }
-    try { mlyToken = localStorage.getItem(MLY_TOKEN_KEY) || ''; } catch (e) { mlyToken = ''; }
+    let stored = '';
+    try { stored = localStorage.getItem(MLY_TOKEN_KEY) || ''; } catch (e) { /* ignore */ }
+    if (stored) { mlyToken = stored; return; }
+    if (BUILD_TIME_TOKEN) { mlyToken = BUILD_TIME_TOKEN; usingSiteDefault = true; }
   })();
 
   function saveMapillaryToken(t) {
-    mlyToken = (t || '').trim();
+    const trimmed = (t || '').trim();
     try {
-      if (mlyToken) localStorage.setItem(MLY_TOKEN_KEY, mlyToken);
+      if (trimmed) localStorage.setItem(MLY_TOKEN_KEY, trimmed);
       else localStorage.removeItem(MLY_TOKEN_KEY);
     } catch (e) { /* private mode etc */ }
+    // After save: if user cleared their token but a site default exists,
+    // fall back to that rather than going to "not set".
+    if (trimmed) {
+      mlyToken = trimmed;
+      usingSiteDefault = false;
+    } else if (BUILD_TIME_TOKEN) {
+      mlyToken = BUILD_TIME_TOKEN;
+      usingSiteDefault = true;
+    } else {
+      mlyToken = '';
+      usingSiteDefault = false;
+    }
     updateTokenStatusUi();
   }
 
@@ -508,10 +529,16 @@ const interventions = [
     const stateEl = document.getElementById('mly-token-state');
     const clearEl = document.getElementById('mly-token-clear');
     if (!stateEl) return;
-    if (mlyToken) {
-      stateEl.textContent = 'saved (this browser)';
+    let userToken = '';
+    try { userToken = localStorage.getItem(MLY_TOKEN_KEY) || ''; } catch (e) { /* ignore */ }
+    if (userToken) {
+      stateEl.textContent = 'saved (your browser)';
       stateEl.style.color = '#81c784';
       clearEl.style.display = '';
+    } else if (BUILD_TIME_TOKEN) {
+      stateEl.textContent = 'using site default';
+      stateEl.style.color = '#cfe4f1';
+      clearEl.style.display = 'none';
     } else {
       stateEl.textContent = 'not set';
       stateEl.style.color = '#9bc7e2';

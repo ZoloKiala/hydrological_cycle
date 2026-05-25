@@ -38,6 +38,12 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          # Site-wide Mapillary token. PUBLIC once shipped to the browser —
+          # protect via the Mapillary developer dashboard's referrer allowlist.
+          # Add the secret at Settings → Secrets and variables → Actions →
+          # New repository secret, name VITE_MAPILLARY_TOKEN.
+          VITE_MAPILLARY_TOKEN: ${{ secrets.VITE_MAPILLARY_TOKEN }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
