@@ -36,6 +36,15 @@ const RIVER = [
 // ---------- WASA INTERVENTIONS ----------
 // `range` (metres above ground) and `pitch` (degrees, negative = look down)
 // are tuned for Cesium's flyToBoundingSphere / lookAt style flight.
+//
+// `image` and `video` are PLACEHOLDERS:
+//   - image: seeded Lorem Picsum URLs — real photos, but not topic-matched.
+//     Swap each per-card with a topical Unsplash / Wikimedia / WASA-archive URL.
+//   - video: Big Buck Bunny low-res sample (Blender Foundation, free).
+//     Swap with real WASA footage when available.
+const SAMPLE_VIDEO =
+  'https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4';
+
 const interventions = [
   {
     icon: 'A',
@@ -44,6 +53,8 @@ const interventions = [
       'Replants tree cover on cleared mountain slopes, pumping moisture back into the atmosphere ' +
       'through transpiration and anchoring topsoil. Agroforestry rows mix trees with food crops.',
     impact: 'Recovers transpiration, recharges groundwater, anchors soil',
+    image: 'https://picsum.photos/seed/wasa-afforestation/640/240',
+    video: SAMPLE_VIDEO,
     pos: [-15.7795, 35.0015],
     range: 600, heading: 60, pitch: -35,
   },
@@ -54,6 +65,8 @@ const interventions = [
       'Minimum tillage, mulching, and cover crops keep soils porous and shaded. Rainfall infiltrates ' +
       'instead of running off; organic matter triples soil water-holding capacity.',
     impact: 'Higher infiltration, lower evaporation loss',
+    image: 'https://picsum.photos/seed/wasa-conservation/640/240',
+    video: SAMPLE_VIDEO,
     pos: [-15.7840, 35.0040],
     range: 400, heading: 20, pitch: -40,
   },
@@ -64,6 +77,8 @@ const interventions = [
       'Small earthen cross-ridges trap rainfall where it falls; soil rippers break compacted layers ' +
       'so water moves into the root zone. Crops survive erratic-rainfall seasons.',
     impact: 'In-situ rainwater capture, deeper percolation',
+    image: 'https://picsum.photos/seed/wasa-tiedridges/640/240',
+    video: SAMPLE_VIDEO,
     pos: [-15.7880, 35.0090],
     range: 400, heading: 340, pitch: -40,
   },
@@ -74,6 +89,8 @@ const interventions = [
       'Contour bunds, mulch strips, and grass tufts hold rainfall on the slope above the gully. ' +
       'Riparian buffers along the river trap sediment before it reaches downstream water bodies.',
     impact: 'Protected topsoil, reduced sediment in rivers',
+    image: 'https://picsum.photos/seed/wasa-erosion/640/240',
+    video: SAMPLE_VIDEO,
     pos: [-15.7915, 35.0050],
     range: 500, heading: 110, pitch: -35,
   },
@@ -84,6 +101,8 @@ const interventions = [
       'Two linked farm ponds store wet-season runoff for dry-season use. Inflow from the stream, ' +
       'outflow tied to terraced fields. The system recharges shallow groundwater and supports life year-round.',
     impact: 'Year-round water access, groundwater recharge',
+    image: 'https://picsum.photos/seed/wasa-rainwater/640/240',
+    video: SAMPLE_VIDEO,
     pos: [-15.7855, 35.0125],
     range: 400, heading: 0, pitch: -45,
   },
@@ -94,6 +113,8 @@ const interventions = [
       'Restored wetlands and small check dams flatten flood peaks and extend dry-season base flow. ' +
       'The watershed acts like a sponge instead of a fast pipe to the river.',
     impact: 'Lower flood peaks, longer base flow',
+    image: 'https://picsum.photos/seed/wasa-green/640/240',
+    video: SAMPLE_VIDEO,
     pos: [-15.7930, 35.0110],
     range: 500, heading: 70, pitch: -35,
   },
@@ -104,6 +125,8 @@ const interventions = [
       'A local watershed committee — convened in the village near the outlet — decides where ponds and ' +
       'forest patches go, enforces grazing rules, and maintains the interventions between seasons.',
     impact: 'Durable, locally-owned landscape stewardship',
+    image: 'https://picsum.photos/seed/wasa-governance/640/240',
+    video: SAMPLE_VIDEO,
     pos: [-15.7861, 35.0058],
     range: 1800, heading: 0, pitch: -55,
   },
@@ -114,6 +137,8 @@ const interventions = [
       'Seasonal forecasts and on-time advisories are broadcast from the school on the ridge. ' +
       'Farmers plant, irrigate, and harvest at the right moment — more crop per millimetre of rain.',
     impact: 'More crop per drop, fewer failed seasons',
+    image: 'https://picsum.photos/seed/wasa-climate/640/240',
+    video: SAMPLE_VIDEO,
     pos: [-15.7800, 35.0080],
     range: 600, heading: 200, pitch: -35,
   },
@@ -280,6 +305,11 @@ const interventions = [
     });
     entityById.set(idx, entity);
   });
+
+  // ---------- SCALE BAR + NORTH ARROW + SEARCH ----------
+  setupScaleBarAndCompass(viewer);
+  setupLocationSearch(viewer);
+  setupVideoModal();
 
   // ---------- ON-SCREEN CAMERA NAV ----------
   // Click for one step, click-and-hold for continuous motion. Useful on
@@ -721,7 +751,25 @@ function buildCards() {
       if (window.__streetView) window.__streetView(idx);
     });
 
-    card.append(head, desc, impact, btn, walkBtn, streetBtn);
+    const videoBtn = document.createElement('button');
+    videoBtn.className = 'map-video-btn';
+    videoBtn.type = 'button';
+    videoBtn.textContent = 'Watch video';
+    videoBtn.title = 'Play a short video about this intervention (placeholder)';
+    videoBtn.addEventListener('click', () => {
+      if (window.__playVideo) window.__playVideo(idx);
+    });
+
+    // Topical photo thumbnail. The Picsum URL is a placeholder — swap per
+    // card with a topical image (Unsplash, Wikimedia, WASA archive) later.
+    const thumb = document.createElement('img');
+    thumb.className = 'map-card-img';
+    thumb.src = iv.image;
+    thumb.alt = iv.title;
+    thumb.loading = 'lazy';
+    thumb.referrerPolicy = 'no-referrer';
+
+    card.append(thumb, head, desc, impact, btn, walkBtn, streetBtn, videoBtn);
     frag.appendChild(card);
   });
   container.replaceChildren(frag);
@@ -730,6 +778,177 @@ function buildCards() {
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// ---------- SCALE BAR + NORTH ARROW ----------
+// Cesium has no built-in widgets for either. We pick two screen-space points
+// 100 px apart at the screen centre, ray-pick them onto the globe, measure
+// the ground distance, and scale a "nice" round number to fit. The north
+// arrow just reads viewer.camera.heading and rotates accordingly. Both
+// update on Cesium's postRender, throttled to ~10 Hz so they don't redraw
+// every frame.
+function setupScaleBarAndCompass(viewer) {
+  const labelEl = document.getElementById('scale-bar-label');
+  const barEl = document.getElementById('scale-bar-bar');
+  const arrowEl = document.querySelector('#north-arrow svg');
+  if (!labelEl || !barEl || !arrowEl) return;
+
+  // Click the arrow to reset the camera heading to true north.
+  document.getElementById('north-arrow').addEventListener('click', () => {
+    const cam = viewer.camera;
+    const dest = cam.positionWC.clone();
+    cam.flyTo({
+      destination: dest,
+      orientation: { heading: 0, pitch: cam.pitch, roll: 0 },
+      duration: 0.8,
+    });
+  });
+
+  function niceRound(n) {
+    if (n <= 0) return 1;
+    const exp = Math.floor(Math.log10(n));
+    const mag = Math.pow(10, exp);
+    const norm = n / mag;
+    let nice;
+    if (norm < 1.5) nice = 1;
+    else if (norm < 3) nice = 2;
+    else if (norm < 7) nice = 5;
+    else nice = 10;
+    return nice * mag;
+  }
+  function formatDistance(m) {
+    if (m >= 1000) return (m / 1000).toFixed(m >= 10000 ? 0 : 1) + ' km';
+    return Math.round(m) + ' m';
+  }
+
+  let lastTick = 0;
+  function tick() {
+    const now = performance.now();
+    if (now - lastTick < 100) return;  // throttle to ~10 Hz
+    lastTick = now;
+
+    // --- North arrow: rotate to keep "N" pointing to true north. ---
+    const headingDeg = Cesium.Math.toDegrees(viewer.camera.heading);
+    arrowEl.style.transform = 'rotate(' + (-headingDeg).toFixed(1) + 'deg)';
+
+    // --- Scale bar: measure 100 px-worth of ground distance at screen centre. ---
+    const canvas = viewer.scene.canvas;
+    const cx = canvas.clientWidth / 2;
+    const cy = canvas.clientHeight / 2;
+    const p1Screen = new Cesium.Cartesian2(cx, cy);
+    const p2Screen = new Cesium.Cartesian2(cx + 100, cy);
+    const ray1 = viewer.camera.getPickRay(p1Screen);
+    const ray2 = viewer.camera.getPickRay(p2Screen);
+    if (!ray1 || !ray2) return;
+    const w1 = viewer.scene.globe.pick(ray1, viewer.scene);
+    const w2 = viewer.scene.globe.pick(ray2, viewer.scene);
+    if (!w1 || !w2) return;
+    const metresPer100px = Cesium.Cartesian3.distance(w1, w2);
+    if (!Number.isFinite(metresPer100px) || metresPer100px <= 0) return;
+
+    // Target bar length ~120 px → pick a nice round metres value that fits.
+    const targetPx = 120;
+    const targetMetres = metresPer100px * (targetPx / 100);
+    const nice = niceRound(targetMetres);
+    const niceWidthPx = (nice / metresPer100px) * 100;
+    barEl.style.width = niceWidthPx.toFixed(0) + 'px';
+    labelEl.textContent = formatDistance(nice);
+  }
+  viewer.scene.postRender.addEventListener(tick);
+  tick();
+}
+
+// ---------- LOCATION SEARCH (OpenStreetMap Nominatim) ----------
+// Free geocoder, no API key. Rate-limited to 1 req/sec by Nominatim's
+// usage policy — we send only on Enter or button click (no live typeahead).
+function setupLocationSearch(viewer) {
+  const input = document.getElementById('search-input');
+  const goBtn = document.getElementById('search-go');
+  const list = document.getElementById('search-results');
+  if (!input || !goBtn || !list) return;
+
+  async function doSearch(q) {
+    q = (q || '').trim();
+    if (!q) return;
+    list.innerHTML = '<li class="search-empty">Searching…</li>';
+    list.hidden = false;
+    try {
+      const url = 'https://nominatim.openstreetmap.org/search'
+        + '?q=' + encodeURIComponent(q)
+        + '&format=json&limit=6&addressdetails=0';
+      const resp = await fetch(url, { headers: { 'Accept': 'application/json' } });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+      list.innerHTML = '';
+      if (!data || !data.length) {
+        list.innerHTML = '<li class="search-empty">No results</li>';
+        return;
+      }
+      data.forEach(r => {
+        const li = document.createElement('li');
+        li.textContent = r.display_name;
+        li.addEventListener('click', () => {
+          flyToCoord(parseFloat(r.lat), parseFloat(r.lon));
+          list.hidden = true;
+          input.value = r.display_name.split(',')[0];
+        });
+        list.appendChild(li);
+      });
+    } catch (e) {
+      list.innerHTML = '<li class="search-empty">Search failed: ' + escapeHtml(e.message) + '</li>';
+    }
+  }
+
+  function flyToCoord(lat, lon) {
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(lon, lat, 6000),
+      orientation: { heading: 0, pitch: Cesium.Math.toRadians(-55), roll: 0 },
+      duration: 1.6,
+    });
+  }
+
+  goBtn.addEventListener('click', () => doSearch(input.value));
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); doSearch(input.value); }
+    else if (e.key === 'Escape') { list.hidden = true; input.blur(); }
+  });
+  // Click outside the search box closes the dropdown.
+  document.addEventListener('click', (e) => {
+    if (!document.getElementById('search-box').contains(e.target)) list.hidden = true;
+  });
+}
+
+// ---------- VIDEO MODAL ----------
+function setupVideoModal() {
+  const overlay = document.getElementById('video-overlay');
+  const videoEl = document.getElementById('video-el');
+  const titleEl = document.getElementById('video-title');
+  const closeBtn = document.getElementById('video-close');
+  if (!overlay || !videoEl || !titleEl || !closeBtn) return;
+
+  function close() {
+    overlay.hidden = true;
+    try { videoEl.pause(); } catch (e) {}
+    videoEl.removeAttribute('src');
+    videoEl.load();   // release the loaded source so the user isn't billed bandwidth
+  }
+  closeBtn.addEventListener('click', close);
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) close();
+  });
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !overlay.hidden) close();
+  });
+
+  window.__playVideo = function (idx) {
+    // `interventions` is in module scope; tour-style cards know their idx.
+    const iv = (typeof interventions !== 'undefined') ? interventions[idx] : null;
+    if (!iv || !iv.video) return;
+    titleEl.textContent = iv.title;
+    videoEl.src = iv.video;
+    overlay.hidden = false;
+    videoEl.play().catch(() => { /* user gesture might be required on iOS */ });
+  };
 }
 
 // Wire the bottom-right cam-controls cluster to Cesium's camera APIs. Each
