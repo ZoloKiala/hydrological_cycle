@@ -343,7 +343,11 @@ const interventions = [
         groundH = samples[0].height;
       }
     } catch (e) { /* ellipsoid provider throws; fall back to 0 */ }
-    const eyeH = groundH + 2;     // ~2 m above ground = eye height
+    // Eye height tuning: at strict 2 m and zoom-17 imagery the grazing angle
+    // stretches one tile across the entire horizon (terrible smear). Bumping
+    // to 8 m — about a tall hut roof — keeps the "I'm on the ground" feel
+    // while drastically reducing pixel stretch.
+    const eyeH = groundH + 8;
 
     walking = true;
     document.body.classList.add('walk-mode');
@@ -353,7 +357,7 @@ const interventions = [
       destination: Cesium.Cartesian3.fromDegrees(lng, lat, eyeH),
       orientation: {
         heading: Cesium.Math.toRadians(iv.heading || 0),
-        pitch: Cesium.Math.toRadians(-5),          // slight downward gaze, more natural
+        pitch: Cesium.Math.toRadians(-10),          // slight downward, hides stretched horizon
         roll: 0,
       },
       duration: 1.4,
@@ -376,21 +380,33 @@ const interventions = [
 
   function attachFps() {
     const ssc = viewer.scene.screenSpaceCameraController;
+    const scene = viewer.scene;
     // Save and swap mouse-input bindings: instead of "drag-to-rotate-globe"
-    // (target-orbit), use "drag-to-look" (free first-person turn).
+    // (target-orbit), use "drag-to-look" (free first-person turn). Also clip
+    // the far frustum and bump fog density so the stretched-tile horizon
+    // fades into atmospheric haze instead of stretching across the screen.
     savedCamControls = {
       enableRotate: ssc.enableRotate,
       enableTranslate: ssc.enableTranslate,
       enableTilt: ssc.enableTilt,
       lookEventTypes: ssc.lookEventTypes,
+      far: viewer.camera.frustum.far,
+      fogDensity: scene.fog.density,
+      fogEnabled: scene.fog.enabled,
     };
     ssc.enableRotate = false;
     ssc.enableTranslate = false;
     ssc.enableTilt = false;
     ssc.enableLook = true;
     ssc.lookEventTypes = [Cesium.CameraEventType.LEFT_DRAG];
-    // Tighten zoom step so wheel doesn't blast you out of walking range.
     ssc.minimumZoomDistance = 0.5;
+
+    // Clip the visible distance to ~1.2 km — beyond that the imagery is the
+    // same z=17 tile stretched, which looks terrible from ground level.
+    viewer.camera.frustum.far = 1200;
+    // Heavy fog hides the blurry far field.
+    scene.fog.enabled = true;
+    scene.fog.density = 0.0015;
 
     window.addEventListener('keydown', onWalkKeyDown);
     window.addEventListener('keyup', onWalkKeyUp);
@@ -399,11 +415,15 @@ const interventions = [
 
   function detachFps() {
     const ssc = viewer.scene.screenSpaceCameraController;
+    const scene = viewer.scene;
     if (savedCamControls) {
       ssc.enableRotate = savedCamControls.enableRotate;
       ssc.enableTranslate = savedCamControls.enableTranslate;
       ssc.enableTilt = savedCamControls.enableTilt;
       ssc.lookEventTypes = savedCamControls.lookEventTypes;
+      viewer.camera.frustum.far = savedCamControls.far;
+      scene.fog.density = savedCamControls.fogDensity;
+      scene.fog.enabled = savedCamControls.fogEnabled;
       savedCamControls = null;
     }
     window.removeEventListener('keydown', onWalkKeyDown);
