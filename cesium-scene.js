@@ -100,7 +100,9 @@ const interventions = [
       'Two linked farm ponds store wet-season runoff for dry-season use. Inflow from the stream, ' +
       'outflow tied to terraced fields. The system recharges shallow groundwater and supports life year-round.',
     impact: 'Year-round water access, groundwater recharge',
-    image: 'https://loremflickr.com/640/240/pond,farm,rainwater/all?lock=5',
+    // Wikimedia Commons photo of a rainwater-harvesting plastic-lined pond
+    // — exact topic match for the Rainwater Harvesting & Farm Ponds card.
+    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Rainwater%20Harvesting%20and%20Plastic%20Pond%202.JPG?width=640',
     pos: [-15.7855, 35.0125],
     range: 400, heading: 0, pitch: -45,
   },
