@@ -470,8 +470,82 @@ const interventions = [
   // Street View. We query the Mapillary Graph API for the nearest image to
   // a given intervention site, then mount the Mapillary Viewer inside the
   // #mly-overlay modal. Free tokens at mapillary.com/dashboard/developers
-  // (no billing). Token is read from the URL: ?mapillary_token=MLY|...
-  const mlyToken = new URLSearchParams(location.search).get('mapillary_token') || '';
+  // (no billing).
+  //
+  // Token resolution:
+  //  1. URL param ?mapillary_token=MLY|...  → saved to localStorage and
+  //     stripped from the address bar so it doesn't end up in shared links.
+  //  2. localStorage key `mapillary_token`  → token sticks across visits.
+  //  3. None                                → user is prompted via the
+  //     notice's "Set token" button.
+  const MLY_TOKEN_KEY = 'mapillary_token';
+  let mlyToken = '';
+  (function loadToken() {
+    const urlToken = new URLSearchParams(location.search).get('mapillary_token');
+    if (urlToken) {
+      try { localStorage.setItem(MLY_TOKEN_KEY, urlToken); } catch (e) { /* private mode etc */ }
+      mlyToken = urlToken;
+      // Strip the token from the URL bar without reloading the page, so the
+      // address you see / copy / share never contains the credential.
+      const u = new URL(location.href);
+      u.searchParams.delete('mapillary_token');
+      history.replaceState(null, '', u.toString());
+      return;
+    }
+    try { mlyToken = localStorage.getItem(MLY_TOKEN_KEY) || ''; } catch (e) { mlyToken = ''; }
+  })();
+
+  function saveMapillaryToken(t) {
+    mlyToken = (t || '').trim();
+    try {
+      if (mlyToken) localStorage.setItem(MLY_TOKEN_KEY, mlyToken);
+      else localStorage.removeItem(MLY_TOKEN_KEY);
+    } catch (e) { /* private mode etc */ }
+    updateTokenStatusUi();
+  }
+
+  function updateTokenStatusUi() {
+    const stateEl = document.getElementById('mly-token-state');
+    const clearEl = document.getElementById('mly-token-clear');
+    if (!stateEl) return;
+    if (mlyToken) {
+      stateEl.textContent = 'saved (this browser)';
+      stateEl.style.color = '#81c784';
+      clearEl.style.display = '';
+    } else {
+      stateEl.textContent = 'not set';
+      stateEl.style.color = '#9bc7e2';
+      clearEl.style.display = 'none';
+    }
+  }
+
+  function promptForToken() {
+    const current = mlyToken || '';
+    const t = window.prompt(
+      'Paste your Mapillary access token (starts with MLY|).\n\n' +
+      'Get a free one at mapillary.com/dashboard/developers — no billing.\n' +
+      'The token is saved to this browser only, never sent to git or the URL.',
+      current
+    );
+    if (t === null) return;          // user pressed Cancel
+    saveMapillaryToken(t);
+    if (mlyToken) {
+      document.getElementById('mly-token-notice').style.display = 'none';
+    }
+  }
+
+  document.getElementById('mly-token-set').addEventListener('click', promptForToken);
+  document.getElementById('mly-token-dismiss').addEventListener('click', () => {
+    document.getElementById('mly-token-notice').style.display = 'none';
+  });
+  document.getElementById('mly-token-change').addEventListener('click', (e) => {
+    e.preventDefault(); promptForToken();
+  });
+  document.getElementById('mly-token-clear').addEventListener('click', (e) => {
+    e.preventDefault();
+    if (confirm('Clear the Mapillary token from this browser?')) saveMapillaryToken('');
+  });
+  updateTokenStatusUi();
   let mlyViewer = null;
   const mlyOverlay = document.getElementById('mly-overlay');
   const mlyTitle = document.getElementById('mly-title');
