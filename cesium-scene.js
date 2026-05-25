@@ -138,7 +138,9 @@ const interventions = [
       'Seasonal forecasts and on-time advisories are broadcast from the school on the ridge. ' +
       'Farmers plant, irrigate, and harvest at the right moment — more crop per millimetre of rain.',
     impact: 'More crop per drop, fewer failed seasons',
-    image: 'https://loremflickr.com/640/240/weather,station,clouds/all?lock=8',
+    // Wikimedia Commons photo of an agrometeorological weather station in a
+    // field — the literal source of seasonal forecasts and on-time advisories.
+    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Agrometeorologia%20Epagri%20Ciram.jpg?width=640',
     pos: [-15.7800, 35.0080],
     range: 600, heading: 200, pitch: -35,
   },
@@ -315,15 +317,20 @@ const interventions = [
   setupCursorCoordinates(viewer);
 
   // ---------- INITIAL CAMERA ----------
-  // Wide overview tilted toward the north, looking down at the watershed.
-  viewer.camera.flyTo({
-    destination: Cesium.Cartesian3.fromDegrees(CENTRE.lng, CENTRE.lat - 0.015, 4500),
-    orientation: {
-      heading: Cesium.Math.toRadians(0),
-      pitch: Cesium.Math.toRadians(-55),
-      roll: 0,
-    },
+  // Frame the watershed polygon itself: compute its bounding sphere and fly
+  // the camera to a sensible standoff so the whole polygon is in view, tilted
+  // ~55° downward for an oblique perspective.
+  const watershedPositions = WATERSHED.map(([lat, lng]) =>
+    Cesium.Cartesian3.fromDegrees(lng, lat)
+  );
+  const watershedSphere = Cesium.BoundingSphere.fromPoints(watershedPositions);
+  viewer.camera.flyToBoundingSphere(watershedSphere, {
     duration: 0,
+    offset: new Cesium.HeadingPitchRange(
+      0,
+      Cesium.Math.toRadians(-55),
+      watershedSphere.radius * 3.0
+    ),
   });
 
   // ---------- FLY-TO BUTTON LOGIC ----------
