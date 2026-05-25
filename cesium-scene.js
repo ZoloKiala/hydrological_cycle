@@ -37,14 +37,10 @@ const RIVER = [
 // `range` (metres above ground) and `pitch` (degrees, negative = look down)
 // are tuned for Cesium's flyToBoundingSphere / lookAt style flight.
 //
-// `image` and `video` are PLACEHOLDERS:
-//   - image: seeded Lorem Picsum URLs — real photos, but not topic-matched.
-//     Swap each per-card with a topical Unsplash / Wikimedia / WASA-archive URL.
-//   - video: Big Buck Bunny low-res sample (Blender Foundation, free).
-//     Swap with real WASA footage when available.
-const SAMPLE_VIDEO =
-  'https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4';
-
+// `image` URLs use LoremFlickr — a free service that returns real, CC-licensed
+// Flickr photos matching the supplied tags. The `lock` query param pins each
+// card to a specific photo (otherwise we'd get a new one every reload). When
+// you have real WASA-specific photos, replace each per-card URL.
 const interventions = [
   {
     icon: 'A',
@@ -53,8 +49,7 @@ const interventions = [
       'Replants tree cover on cleared mountain slopes, pumping moisture back into the atmosphere ' +
       'through transpiration and anchoring topsoil. Agroforestry rows mix trees with food crops.',
     impact: 'Recovers transpiration, recharges groundwater, anchors soil',
-    image: 'https://picsum.photos/seed/wasa-afforestation/640/240',
-    video: SAMPLE_VIDEO,
+    image: 'https://loremflickr.com/640/240/forest,tree-planting,africa/all?lock=1',
     pos: [-15.7795, 35.0015],
     range: 600, heading: 60, pitch: -35,
   },
@@ -65,8 +60,7 @@ const interventions = [
       'Minimum tillage, mulching, and cover crops keep soils porous and shaded. Rainfall infiltrates ' +
       'instead of running off; organic matter triples soil water-holding capacity.',
     impact: 'Higher infiltration, lower evaporation loss',
-    image: 'https://picsum.photos/seed/wasa-conservation/640/240',
-    video: SAMPLE_VIDEO,
+    image: 'https://loremflickr.com/640/240/farm,field,mulch/all?lock=2',
     pos: [-15.7840, 35.0040],
     range: 400, heading: 20, pitch: -40,
   },
@@ -77,8 +71,7 @@ const interventions = [
       'Small earthen cross-ridges trap rainfall where it falls; soil rippers break compacted layers ' +
       'so water moves into the root zone. Crops survive erratic-rainfall seasons.',
     impact: 'In-situ rainwater capture, deeper percolation',
-    image: 'https://picsum.photos/seed/wasa-tiedridges/640/240',
-    video: SAMPLE_VIDEO,
+    image: 'https://loremflickr.com/640/240/terrace,farming,contour/all?lock=3',
     pos: [-15.7880, 35.0090],
     range: 400, heading: 340, pitch: -40,
   },
@@ -89,8 +82,7 @@ const interventions = [
       'Contour bunds, mulch strips, and grass tufts hold rainfall on the slope above the gully. ' +
       'Riparian buffers along the river trap sediment before it reaches downstream water bodies.',
     impact: 'Protected topsoil, reduced sediment in rivers',
-    image: 'https://picsum.photos/seed/wasa-erosion/640/240',
-    video: SAMPLE_VIDEO,
+    image: 'https://loremflickr.com/640/240/erosion,gully,soil/all?lock=4',
     pos: [-15.7915, 35.0050],
     range: 500, heading: 110, pitch: -35,
   },
@@ -101,8 +93,7 @@ const interventions = [
       'Two linked farm ponds store wet-season runoff for dry-season use. Inflow from the stream, ' +
       'outflow tied to terraced fields. The system recharges shallow groundwater and supports life year-round.',
     impact: 'Year-round water access, groundwater recharge',
-    image: 'https://picsum.photos/seed/wasa-rainwater/640/240',
-    video: SAMPLE_VIDEO,
+    image: 'https://loremflickr.com/640/240/pond,farm,rainwater/all?lock=5',
     pos: [-15.7855, 35.0125],
     range: 400, heading: 0, pitch: -45,
   },
@@ -113,8 +104,7 @@ const interventions = [
       'Restored wetlands and small check dams flatten flood peaks and extend dry-season base flow. ' +
       'The watershed acts like a sponge instead of a fast pipe to the river.',
     impact: 'Lower flood peaks, longer base flow',
-    image: 'https://picsum.photos/seed/wasa-green/640/240',
-    video: SAMPLE_VIDEO,
+    image: 'https://loremflickr.com/640/240/wetland,marsh,river/all?lock=6',
     pos: [-15.7930, 35.0110],
     range: 500, heading: 70, pitch: -35,
   },
@@ -125,8 +115,7 @@ const interventions = [
       'A local watershed committee — convened in the village near the outlet — decides where ponds and ' +
       'forest patches go, enforces grazing rules, and maintains the interventions between seasons.',
     impact: 'Durable, locally-owned landscape stewardship',
-    image: 'https://picsum.photos/seed/wasa-governance/640/240',
-    video: SAMPLE_VIDEO,
+    image: 'https://loremflickr.com/640/240/village,community,africa/all?lock=7',
     pos: [-15.7861, 35.0058],
     range: 1800, heading: 0, pitch: -55,
   },
@@ -137,8 +126,7 @@ const interventions = [
       'Seasonal forecasts and on-time advisories are broadcast from the school on the ridge. ' +
       'Farmers plant, irrigate, and harvest at the right moment — more crop per millimetre of rain.',
     impact: 'More crop per drop, fewer failed seasons',
-    image: 'https://picsum.photos/seed/wasa-climate/640/240',
-    video: SAMPLE_VIDEO,
+    image: 'https://loremflickr.com/640/240/weather,station,clouds/all?lock=8',
     pos: [-15.7800, 35.0080],
     range: 600, heading: 200, pitch: -35,
   },
@@ -306,10 +294,10 @@ const interventions = [
     entityById.set(idx, entity);
   });
 
-  // ---------- SCALE BAR + NORTH ARROW + SEARCH ----------
+  // ---------- SCALE BAR + NORTH ARROW + SEARCH + COORDS ----------
   setupScaleBarAndCompass(viewer);
   setupLocationSearch(viewer);
-  setupVideoModal();
+  setupCursorCoordinates(viewer);
 
   // ---------- ON-SCREEN CAMERA NAV ----------
   // Click for one step, click-and-hold for continuous motion. Useful on
@@ -751,17 +739,8 @@ function buildCards() {
       if (window.__streetView) window.__streetView(idx);
     });
 
-    const videoBtn = document.createElement('button');
-    videoBtn.className = 'map-video-btn';
-    videoBtn.type = 'button';
-    videoBtn.textContent = 'Watch video';
-    videoBtn.title = 'Play a short video about this intervention (placeholder)';
-    videoBtn.addEventListener('click', () => {
-      if (window.__playVideo) window.__playVideo(idx);
-    });
-
-    // Topical photo thumbnail. The Picsum URL is a placeholder — swap per
-    // card with a topical image (Unsplash, Wikimedia, WASA archive) later.
+    // Topical photo thumbnail via LoremFlickr (real Flickr CC photos tag-matched
+    // to this intervention). Swap with a curated image when one is available.
     const thumb = document.createElement('img');
     thumb.className = 'map-card-img';
     thumb.src = iv.image;
@@ -769,7 +748,7 @@ function buildCards() {
     thumb.loading = 'lazy';
     thumb.referrerPolicy = 'no-referrer';
 
-    card.append(thumb, head, desc, impact, btn, walkBtn, streetBtn, videoBtn);
+    card.append(thumb, head, desc, impact, btn, walkBtn, streetBtn);
     frag.appendChild(card);
   });
   container.replaceChildren(frag);
@@ -918,37 +897,32 @@ function setupLocationSearch(viewer) {
   });
 }
 
-// ---------- VIDEO MODAL ----------
-function setupVideoModal() {
-  const overlay = document.getElementById('video-overlay');
-  const videoEl = document.getElementById('video-el');
-  const titleEl = document.getElementById('video-title');
-  const closeBtn = document.getElementById('video-close');
-  if (!overlay || !videoEl || !titleEl || !closeBtn) return;
-
-  function close() {
-    overlay.hidden = true;
-    try { videoEl.pause(); } catch (e) {}
-    videoEl.removeAttribute('src');
-    videoEl.load();   // release the loaded source so the user isn't billed bandwidth
-  }
-  closeBtn.addEventListener('click', close);
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) close();
-  });
-  window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !overlay.hidden) close();
-  });
-
-  window.__playVideo = function (idx) {
-    // `interventions` is in module scope; tour-style cards know their idx.
-    const iv = (typeof interventions !== 'undefined') ? interventions[idx] : null;
-    if (!iv || !iv.video) return;
-    titleEl.textContent = iv.title;
-    videoEl.src = iv.video;
-    overlay.hidden = false;
-    videoEl.play().catch(() => { /* user gesture might be required on iOS */ });
-  };
+// ---------- LIVE CURSOR COORDINATES ----------
+// Reads back the lat/lng under the mouse cursor as the user moves it across
+// the globe. Cesium's pickEllipsoid resolves a screen point to a world
+// position; we convert to cartographic and format. Shown at bottom-center
+// next to the scale bar.
+function setupCursorCoordinates(viewer) {
+  const el = document.getElementById('cursor-coords');
+  if (!el) return;
+  const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+  handler.setInputAction(({ endPosition }) => {
+    const ellipsoid = viewer.scene.globe.ellipsoid;
+    // First try a terrain pick (accurate over surfaces), then fall back to
+    // ellipsoid pick if the ray missed (looking at the sky).
+    let cartesian = viewer.scene.pickPosition(endPosition);
+    if (!Cesium.defined(cartesian) || !cartesian) {
+      cartesian = viewer.camera.pickEllipsoid(endPosition, ellipsoid);
+    }
+    if (!cartesian) { el.hidden = true; return; }
+    const carto = Cesium.Cartographic.fromCartesian(cartesian, ellipsoid);
+    const lat = Cesium.Math.toDegrees(carto.latitude);
+    const lon = Cesium.Math.toDegrees(carto.longitude);
+    el.textContent = `lat ${lat.toFixed(5)}, lon ${lon.toFixed(5)}`;
+    el.hidden = false;
+  }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+  // Hide the readout when the cursor leaves the canvas.
+  viewer.scene.canvas.addEventListener('mouseleave', () => { el.hidden = true; });
 }
 
 // Wire the bottom-right cam-controls cluster to Cesium's camera APIs. Each

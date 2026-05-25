@@ -50,13 +50,12 @@
        look, so reusing those names would inherit the wrong theme. Goal
        here is small + non-salient: the controls live faintly at the
        bottom edge and brighten only on hover. */
-    #wasa-cam { position: fixed; right: 392px; bottom: 16px; z-index: 4;
+    #wasa-cam { position: fixed; top: 80px; left: 16px; z-index: 4;
       display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 5px 6px;
       background: rgba(7,28,41,0.55); border: 1px solid rgba(255,255,255,0.10);
       border-radius: 8px; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
       opacity: 0.55; transition: opacity 0.18s; }
     #wasa-cam:hover, #wasa-cam:focus-within { opacity: 1; }
-    body.panel-hidden #wasa-cam { right: 16px; }
     .wasa-cam-pan { display: grid; grid-template-columns: repeat(3, 22px);
       grid-template-rows: repeat(3, 22px); gap: 2px; }
     .wasa-cam-pan .wasa-cam-pan-up    { grid-column: 2; grid-row: 1; }
@@ -74,8 +73,7 @@
     .wasa-cam-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
     .wasa-cam-btn:active { background: rgba(79,195,247,0.30); border-color: #4fc3f7; }
     @media (max-width: 720px) {
-      #wasa-cam { right: 8px; bottom: 50vh; }
-      body.panel-hidden #wasa-cam { right: 8px; bottom: 16px; }
+      #wasa-cam { top: 70px; left: 8px; }
     }
     /* ---------- WALK MODE (first-person) ---------- */
     /* Hide other chrome so the FPS view is uncluttered. */
@@ -178,64 +176,48 @@
       border: 1px solid #81c784; background: rgba(129, 199, 132, 0.16);
       color: #fff; cursor: pointer; font-size: 12px; margin-right: 6px; }
     .map-street-btn:hover { background: rgba(129, 199, 132, 0.28); }
-    .map-video-btn { display: inline-block; padding: 6px 12px; border-radius: 6px;
-      border: 1px solid #ce93d8; background: rgba(206, 147, 216, 0.16);
-      color: #fff; cursor: pointer; font-size: 12px; }
-    .map-video-btn:hover { background: rgba(206, 147, 216, 0.28); }
     .map-card-img { width: 100%; height: 110px; object-fit: cover;
       border-radius: 6px; margin-bottom: 8px; display: block;
       background: rgba(255,255,255,0.04); }
     /* ---------- SCALE BAR ---------- */
-    #scale-bar { position: fixed; bottom: 200px; left: 16px; z-index: 4;
-      padding: 5px 8px; background: rgba(7,28,41,0.78);
+    #scale-bar { position: fixed; bottom: 16px; left: 50%;
+      transform: translateX(-50%); z-index: 4;
+      padding: 5px 10px; background: rgba(7,28,41,0.78);
       color: #fff; font-size: 11px; border-radius: 6px;
       border: 1px solid rgba(255,255,255,0.18); pointer-events: none;
-      backdrop-filter: blur(4px); }
+      backdrop-filter: blur(4px); text-align: center; }
     #scale-bar-bar { display: block; height: 4px; background: #fff;
       border-radius: 1px; margin-top: 3px; transition: width 0.2s; }
     /* ---------- NORTH ARROW ---------- */
-    #north-arrow { position: fixed; bottom: 100px; right: 392px; z-index: 4;
+    #north-arrow { position: fixed; top: 80px; left: 108px; z-index: 4;
       width: 38px; height: 38px; border-radius: 50%;
       background: rgba(7,28,41,0.78); border: 1px solid rgba(255,255,255,0.18);
       cursor: pointer; display: flex; align-items: center; justify-content: center;
-      backdrop-filter: blur(4px); }
-    body.panel-hidden #north-arrow { right: 16px; }
+      backdrop-filter: blur(4px); padding: 0; }
     #north-arrow svg { width: 30px; height: 30px; transition: transform 0.18s ease-out; }
     #north-arrow:hover { background: rgba(7,28,41,0.95); }
     @media (max-width: 720px) {
-      #north-arrow { right: 8px; bottom: 55vh; }
-      body.panel-hidden #north-arrow { right: 8px; bottom: 60px; }
+      #north-arrow { top: 70px; left: 92px; }
     }
-    /* ---------- VIDEO MODAL ---------- */
-    #video-overlay { position: fixed; inset: 0; z-index: 50;
-      background: rgba(0,0,0,0.85); display: flex;
-      align-items: center; justify-content: center; }
-    #video-overlay[hidden] { display: none; }
-    #video-frame { width: min(90vw, 960px); max-height: 85vh;
-      background: #000; border-radius: 8px; overflow: hidden;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
-    #video-el { width: 100%; height: auto; display: block;
-      max-height: 85vh; background: #000; }
-    .video-hud { position: absolute; top: 16px; right: 16px; left: 16px;
-      display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-    #video-title { color: #fff; font-weight: 600; padding: 8px 16px;
-      background: rgba(7,28,41,0.88); border-radius: 20px;
-      backdrop-filter: blur(6px); font-size: 13px; max-width: 70vw;
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    #video-close { padding: 8px 16px; border-radius: 20px;
-      background: rgba(255,112,67,0.32); color: #fff; border: 1px solid #ff7043;
-      cursor: pointer; font-size: 13px; font-weight: 600; }
-    #video-close:hover { background: rgba(255,112,67,0.5); }
-    #video-placeholder-note { position: absolute; bottom: 24px; left: 50%;
-      transform: translateX(-50%); padding: 6px 14px; border-radius: 16px;
-      background: rgba(206,147,216,0.18); color: #ce93d8;
-      border: 1px solid rgba(206,147,216,0.4); font-size: 11px; letter-spacing: 0.04em; }
-    /* ---------- FLOATING LEGEND (moved out of WASA panel) ---------- */
-    #map-legend { position: fixed; bottom: 85px; left: 16px; z-index: 4;
+    /* ---------- COORDINATES READOUT ---------- */
+    /* Live cursor lat/lng readout. Sits next to the scale bar at bottom-center. */
+    #cursor-coords { position: fixed; bottom: 16px; left: 50%;
+      transform: translateX(calc(-50% + 140px)); z-index: 4;
+      padding: 5px 10px; background: rgba(7,28,41,0.78);
+      color: #cfe4f1; font-size: 11px; font-family: ui-monospace, Menlo, Consolas, monospace;
+      border-radius: 6px; border: 1px solid rgba(255,255,255,0.18);
+      pointer-events: none; backdrop-filter: blur(4px); white-space: nowrap; }
+    #cursor-coords[hidden] { display: none; }
+    @media (max-width: 720px) {
+      #cursor-coords { display: none; }   /* no hover on touch — hide on small screens */
+    }
+    /* ---------- FLOATING LEGEND (bottom-right, where cam-controls used to be) ---------- */
+    #map-legend { position: fixed; bottom: 16px; right: 392px; z-index: 4;
       padding: 8px 12px; max-width: 240px;
       background: rgba(7,28,41,0.78); color: #cfe4f1;
       border: 1px solid rgba(255,255,255,0.14); border-radius: 8px;
       font-size: 11.5px; backdrop-filter: blur(4px); }
+    body.panel-hidden #map-legend { right: 16px; }
     #map-legend .row { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
     #map-legend .swatch { width: 11px; height: 11px; border-radius: 2px; flex-shrink: 0; }
     /* ---------- LOCATION SEARCH BAR ---------- */
@@ -314,7 +296,7 @@
     .cesium-infoBox {
       left: 16px !important;
       right: auto !important;
-      top: 96px !important;
+      top: 145px !important;          /* sit below the top-left nav cluster */
       width: 340px !important;
       max-width: calc(100vw - 392px) !important;    /* never reach the right panel */
       max-height: calc(100vh - 320px) !important;     /* leave room for token notice + site badge below */
@@ -391,17 +373,8 @@
     </svg>
   </button>
 
-  <!-- Video modal — placeholder clips per card. -->
-  <div id="video-overlay" hidden>
-    <div id="video-frame">
-      <video id="video-el" controls playsinline preload="metadata"></video>
-    </div>
-    <div class="video-hud">
-      <span id="video-title">Video</span>
-      <button id="video-close" type="button">x Close</button>
-    </div>
-    <div id="video-placeholder-note">Placeholder clip — swap with real WASA footage</div>
-  </div>
+  <!-- Live lat/lng readout that follows the mouse cursor over the globe. -->
+  <div id="cursor-coords" hidden>lat —, lon —</div>
 
   <!-- Mapillary Street View modal. Hidden by default; shown by clicking
        the "Street View" button on any WASA card. -->
