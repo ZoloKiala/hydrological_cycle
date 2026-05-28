@@ -204,60 +204,88 @@
     #form-open:hover { background: rgba(129,199,132,0.36); }
     #form-overlay { position: fixed; inset: 0; z-index: 60;
       background: rgba(0,0,0,0.7); display: flex;
-      align-items: center; justify-content: center; padding: 20px; }
+      align-items: center; justify-content: center; padding: 20px;
+      backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
     #form-overlay[hidden] { display: none; }
-    #form-card { width: min(560px, 100%); max-height: 90vh; overflow-y: auto;
-      background: #0a1820; color: #e6f0f7; border-radius: 14px;
-      border: 1px solid rgba(255,255,255,0.18); padding: 20px;
+    #form-card { width: min(600px, 100%); max-height: 92vh; overflow-y: auto;
+      background: linear-gradient(180deg, #0a1820 0%, #0e2030 100%);
+      color: #e6f0f7; border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.14); padding: 24px;
       box-shadow: 0 24px 80px rgba(0,0,0,0.6); }
     #form-card header { display: flex; justify-content: space-between;
-      align-items: center; margin-bottom: 14px; }
-    #form-card h2 { margin: 0; font-size: 18px; color: #fff; }
+      align-items: flex-start; margin-bottom: 6px; gap: 12px; }
+    .form-eyebrow { display: block; font-size: 11px; color: #9bc7e2;
+      letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 4px; }
+    #form-card h2 { margin: 0; font-size: 20px; color: #fff; font-weight: 600; }
     #form-card h3 { margin: 0 0 10px 0; font-size: 15px; color: #ffd54f; }
-    #form-close { width: 30px; height: 30px; border-radius: 50%; border: 0;
+    .form-intro { margin: 0 0 18px 0; padding: 12px 14px;
+      background: rgba(79,195,247,0.08); color: #cfe4f1;
+      border-left: 3px solid #4fc3f7; border-radius: 0 8px 8px 0;
+      font-size: 12.5px; line-height: 1.55; }
+    .form-intro strong { color: #fff; }
+    #form-close { width: 32px; height: 32px; border-radius: 50%; border: 0;
       background: rgba(255,255,255,0.08); color: #fff; cursor: pointer;
-      font-size: 16px; line-height: 1; padding: 0; }
+      font-size: 18px; line-height: 1; padding: 0; flex-shrink: 0; }
     #form-close:hover { background: rgba(255,255,255,0.18); }
-    #wasa-form label { display: block; margin-bottom: 12px;
-      font-size: 12px; color: #9bc7e2; }
+    #wasa-form { display: flex; flex-direction: column; gap: 14px; }
+    #wasa-form label { display: block; font-size: 11.5px; font-weight: 600;
+      color: #9bc7e2; letter-spacing: 0.04em;
+      text-transform: uppercase; }
     #wasa-form label > span.req { color: #ff8a65; }
     #wasa-form input[type=text], #wasa-form input[type=file],
     #wasa-form select, #wasa-form textarea { display: block; width: 100%;
-      margin-top: 4px; padding: 8px 12px;
-      background: rgba(255,255,255,0.06); color: #fff;
-      border: 1px solid rgba(255,255,255,0.18); border-radius: 6px;
-      font-size: 13px; font-family: inherit; box-sizing: border-box; }
-    #wasa-form input[readonly] { background: rgba(255,255,255,0.04); cursor: default; }
-    #wasa-form textarea { min-height: 70px; resize: vertical; }
-    #wasa-form .row { display: flex; gap: 6px; align-items: stretch; }
-    #wasa-form .row > input[type=text] { flex: 1; }
-    #form-gps { padding: 8px 12px; border-radius: 6px;
+      margin-top: 6px; padding: 10px 12px;
+      background: rgba(255,255,255,0.05); color: #fff;
+      border: 1px solid rgba(255,255,255,0.16); border-radius: 8px;
+      font-size: 13.5px; font-family: inherit; box-sizing: border-box;
+      transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+      text-transform: none; letter-spacing: normal; font-weight: normal; }
+    #wasa-form input[type=text]:focus, #wasa-form select:focus,
+    #wasa-form textarea:focus { outline: none;
+      border-color: #4fc3f7; background: rgba(255,255,255,0.08);
+      box-shadow: 0 0 0 2px rgba(79,195,247,0.25); }
+    #wasa-form input[readonly] { background: rgba(255,255,255,0.03);
+      cursor: default; color: #cfe4f1; font-family: ui-monospace, Menlo, Consolas, monospace; }
+    #wasa-form textarea { min-height: 70px; resize: vertical; line-height: 1.45; }
+    #wasa-form input[type=file] { padding: 8px 10px; cursor: pointer; }
+    #wasa-form .row { display: flex; gap: 8px; align-items: stretch; margin-top: 6px; }
+    #wasa-form .row > input[type=text] { flex: 1; margin-top: 0; }
+    #form-gps { padding: 8px 14px; border-radius: 8px;
       border: 1px solid #4fc3f7; background: rgba(79,195,247,0.22);
       color: #fff; cursor: pointer; font-size: 12px; font-weight: 600;
-      white-space: nowrap; align-self: stretch; margin-top: 4px; }
+      white-space: nowrap; align-self: stretch;
+      text-transform: none; letter-spacing: normal; }
     #form-gps:hover { background: rgba(79,195,247,0.36); }
     #form-gps:disabled { opacity: 0.5; cursor: not-allowed; }
-    .form-actions { margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; }
-    .form-actions button { padding: 10px 16px; border-radius: 8px;
-      border: 1px solid #4fc3f7; background: rgba(79,195,247,0.22);
-      color: #fff; cursor: pointer; font-size: 13px; font-weight: 600; }
+    .form-actions { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .form-actions button { padding: 10px 18px; border-radius: 8px;
+      border: 1px solid #4fc3f7; background: rgba(79,195,247,0.24);
+      color: #fff; cursor: pointer; font-size: 13px; font-weight: 600;
+      transition: background 0.15s, transform 0.05s; }
+    .form-actions button[type="submit"] { background: #4fc3f7; color: #0a1820;
+      border-color: #4fc3f7; }
+    .form-actions button[type="submit"]:hover { background: #7ed1f7; }
     .form-actions button.secondary { border-color: rgba(255,255,255,0.22);
       background: rgba(255,255,255,0.06); }
-    .form-actions button:hover { background: rgba(79,195,247,0.36); }
+    .form-actions button:hover { background: rgba(79,195,247,0.38); }
     .form-actions button.secondary:hover { background: rgba(255,255,255,0.14); }
-    #form-status { margin-top: 8px; font-size: 12px; min-height: 16px; }
+    .form-actions button:active { transform: scale(0.97); }
+    #form-status { font-size: 12px; min-height: 16px; padding: 4px 0; }
     #form-status.ok { color: #81c784; }
     #form-status.err { color: #ff8a65; }
-    #form-result { margin-top: 14px; padding-top: 14px;
+    #form-result { margin-top: 18px; padding-top: 18px;
       border-top: 1px solid rgba(255,255,255,0.12); }
     #form-result[hidden] { display: none; }
-    #form-json { background: rgba(0,0,0,0.4); color: #cfe4f1;
-      padding: 10px 12px; border-radius: 6px;
-      font-size: 11px; font-family: ui-monospace, Menlo, Consolas, monospace;
+    #form-json { background: rgba(0,0,0,0.45); color: #cfe4f1;
+      padding: 12px 14px; border-radius: 8px;
+      font-size: 11.5px; font-family: ui-monospace, Menlo, Consolas, monospace;
       max-height: 240px; overflow: auto; white-space: pre-wrap;
-      word-break: break-all; }
+      word-break: break-all; line-height: 1.55;
+      border: 1px solid rgba(255,255,255,0.08); }
+    #photo-count { font-weight: 600; }
     @media (max-width: 720px) {
       #form-open { right: 116px; padding: 8px 12px; font-size: 12px; }
+      #form-card { padding: 18px; }
     }
     /* ---------- LOCATION SEARCH BAR ---------- */
     #search-box { position: fixed; top: 80px; left: 50%;
@@ -391,9 +419,19 @@
   <div id="form-overlay" hidden>
     <div id="form-card">
       <header>
-        <h2>+ Add WASA intervention</h2>
-        <button id="form-close" type="button" aria-label="Close form">x</button>
+        <div>
+          <span class="form-eyebrow">Water and Soil Accelerator</span>
+          <h2>Record an intervention site</h2>
+        </div>
+        <button id="form-close" type="button" aria-label="Close form">×</button>
       </header>
+      <p class="form-intro">
+        Capture a WASA intervention as you visit it. Pick the type, attach at
+        least three geotagged photos, and tag your GPS position. The record is
+        saved <strong>in your browser</strong> — no upload, no server — and
+        you download the JSON metadata plus the photo files to share or
+        import into KoBoToolbox later.
+      </p>
       <!-- (KoBoToolbox XLSForm is tracked in the repo as
            wasa-intervention-form.xlsx but is intentionally NOT deployed
            to the Pages site.) -->
