@@ -754,9 +754,11 @@
           setStatus('Please capture GPS with the 📍 button.', 'err'); return;
         }
         const [latStr, lonStr] = loc.value.split(',').map(s => s.trim());
+        const now = new Date();
         const record = {
           id: 'wasa_' + Date.now(),
-          captured_at: new Date().toISOString(),
+          today: now.toISOString().slice(0, 10),  // YYYY-MM-DD, mirrors XLSForm `today`
+          captured_at: now.toISOString(),
           intervention: fd.get('intervention'),
           type: fd.get('type'),
           description: fd.get('description'),
