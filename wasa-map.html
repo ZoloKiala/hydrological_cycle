@@ -194,6 +194,71 @@
     body.panel-hidden #map-legend { right: 16px; }
     #map-legend .row { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
     #map-legend .swatch { width: 11px; height: 11px; border-radius: 2px; flex-shrink: 0; }
+    /* ---------- ADD-INTERVENTION WEBFORM ---------- */
+    #form-open { position: fixed; top: 14px; right: 200px; z-index: 5;
+      padding: 10px 16px; border-radius: 22px;
+      border: 1px solid #81c784; background: rgba(129,199,132,0.22);
+      color: #fff; cursor: pointer; font-size: 13px; font-weight: 600;
+      letter-spacing: 0.02em; backdrop-filter: blur(6px);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.35); }
+    #form-open:hover { background: rgba(129,199,132,0.36); }
+    #form-overlay { position: fixed; inset: 0; z-index: 60;
+      background: rgba(0,0,0,0.7); display: flex;
+      align-items: center; justify-content: center; padding: 20px; }
+    #form-overlay[hidden] { display: none; }
+    #form-card { width: min(560px, 100%); max-height: 90vh; overflow-y: auto;
+      background: #0a1820; color: #e6f0f7; border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.18); padding: 20px;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.6); }
+    #form-card header { display: flex; justify-content: space-between;
+      align-items: center; margin-bottom: 14px; }
+    #form-card h2 { margin: 0; font-size: 18px; color: #fff; }
+    #form-card h3 { margin: 0 0 10px 0; font-size: 15px; color: #ffd54f; }
+    #form-close { width: 30px; height: 30px; border-radius: 50%; border: 0;
+      background: rgba(255,255,255,0.08); color: #fff; cursor: pointer;
+      font-size: 16px; line-height: 1; padding: 0; }
+    #form-close:hover { background: rgba(255,255,255,0.18); }
+    #wasa-form label { display: block; margin-bottom: 12px;
+      font-size: 12px; color: #9bc7e2; }
+    #wasa-form label > span.req { color: #ff8a65; }
+    #wasa-form input[type=text], #wasa-form input[type=file],
+    #wasa-form select, #wasa-form textarea { display: block; width: 100%;
+      margin-top: 4px; padding: 8px 12px;
+      background: rgba(255,255,255,0.06); color: #fff;
+      border: 1px solid rgba(255,255,255,0.18); border-radius: 6px;
+      font-size: 13px; font-family: inherit; box-sizing: border-box; }
+    #wasa-form input[readonly] { background: rgba(255,255,255,0.04); cursor: default; }
+    #wasa-form textarea { min-height: 70px; resize: vertical; }
+    #wasa-form .row { display: flex; gap: 6px; align-items: stretch; }
+    #wasa-form .row > input[type=text] { flex: 1; }
+    #form-gps { padding: 8px 12px; border-radius: 6px;
+      border: 1px solid #4fc3f7; background: rgba(79,195,247,0.22);
+      color: #fff; cursor: pointer; font-size: 12px; font-weight: 600;
+      white-space: nowrap; align-self: stretch; margin-top: 4px; }
+    #form-gps:hover { background: rgba(79,195,247,0.36); }
+    #form-gps:disabled { opacity: 0.5; cursor: not-allowed; }
+    .form-actions { margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .form-actions button { padding: 10px 16px; border-radius: 8px;
+      border: 1px solid #4fc3f7; background: rgba(79,195,247,0.22);
+      color: #fff; cursor: pointer; font-size: 13px; font-weight: 600; }
+    .form-actions button.secondary { border-color: rgba(255,255,255,0.22);
+      background: rgba(255,255,255,0.06); }
+    .form-actions button:hover { background: rgba(79,195,247,0.36); }
+    .form-actions button.secondary:hover { background: rgba(255,255,255,0.14); }
+    #form-status { margin-top: 8px; font-size: 12px; min-height: 16px; }
+    #form-status.ok { color: #81c784; }
+    #form-status.err { color: #ff8a65; }
+    #form-result { margin-top: 14px; padding-top: 14px;
+      border-top: 1px solid rgba(255,255,255,0.12); }
+    #form-result[hidden] { display: none; }
+    #form-json { background: rgba(0,0,0,0.4); color: #cfe4f1;
+      padding: 10px 12px; border-radius: 6px;
+      font-size: 11px; font-family: ui-monospace, Menlo, Consolas, monospace;
+      max-height: 240px; overflow: auto; white-space: pre-wrap;
+      word-break: break-all; }
+    @media (max-width: 720px) {
+      #form-open { right: 116px; padding: 8px 12px; font-size: 12px; }
+    }
     /* ---------- LOCATION SEARCH BAR ---------- */
     #search-box { position: fixed; top: 80px; left: 50%;
       transform: translateX(-50%); z-index: 5;
@@ -317,6 +382,78 @@
       <p>CesiumJS 3D globe · Water and Soil Accelerator · Malawi pilot watershed</p>
     </div>
   </header>
+
+  <button id="form-open" type="button" title="Add a WASA intervention record">+ Add intervention</button>
+
+  <!-- Add-WASA-intervention webform (in-page; no backend, no upload). On submit
+       the form bundles the captured GPS + photo + free-text fields into a
+       JSON blob and offers it as a download / clipboard copy. -->
+  <div id="form-overlay" hidden>
+    <div id="form-card">
+      <header>
+        <h2>+ Add WASA intervention</h2>
+        <button id="form-close" type="button" aria-label="Close form">x</button>
+      </header>
+      <form id="wasa-form">
+        <label>
+          WASA intervention <span class="req">*</span>
+          <select name="intervention" required>
+            <option value="">— select —</option>
+            <option value="a_afforestation">A — Afforestation &amp; Agroforestry</option>
+            <option value="b_conservation">B — Conservation Agriculture</option>
+            <option value="c_tied_ridges">C — Tied Ridges &amp; Soil Ripping</option>
+            <option value="d_erosion">D — Erosion Control &amp; Riparian Buffers</option>
+            <option value="e_rainwater">E — Rainwater Harvesting &amp; Farm Ponds</option>
+            <option value="f_green_infra">F — Green Infrastructure</option>
+            <option value="g_governance">G — Community Watershed Governance</option>
+            <option value="h_climate">H — Climate Information Services</option>
+          </select>
+        </label>
+        <label>
+          Type / sub-category <span class="req">*</span>
+          <input type="text" name="type" required placeholder="e.g. live fencing, cover crop, stone bund, farm pond…" />
+        </label>
+        <label>
+          Description <span class="req">*</span>
+          <textarea name="description" required placeholder="What was implemented? Size, materials, beneficiaries."></textarea>
+        </label>
+        <label>
+          Location (GPS — lat, lon) <span class="req">*</span>
+          <div class="row">
+            <input type="text" name="location" id="form-location" readonly required placeholder="click Get GPS" />
+            <button id="form-gps" type="button">📍 Get GPS</button>
+          </div>
+        </label>
+        <label>
+          Photo (must be geotagged) <span class="req">*</span>
+          <input type="file" name="photo" accept="image/*" capture="environment" required />
+          <small style="display:block;margin-top:4px;color:#9bc7e2">
+            Use a phone with location services ON so EXIF GPS is embedded.
+            The GPS field above is also recorded as a fallback.
+          </small>
+        </label>
+        <label>
+          Comment
+          <textarea name="comment" placeholder="Optional notes — issues, follow-ups, contacts, dates"></textarea>
+        </label>
+        <div id="form-status"></div>
+        <div class="form-actions">
+          <button type="submit">Save record</button>
+          <button type="button" class="secondary" id="form-reset">Clear</button>
+        </div>
+      </form>
+      <div id="form-result" hidden>
+        <h3>Record saved</h3>
+        <pre id="form-json"></pre>
+        <div class="form-actions">
+          <button type="button" id="form-copy">Copy JSON</button>
+          <button type="button" id="form-download-json">Download .json</button>
+          <button type="button" id="form-download-photo">Download photo</button>
+          <button type="button" class="secondary" id="form-new">+ New entry</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <a id="site-toggle" href="index.html" title="Open the Three.js water-cycle scene">
     <span aria-hidden="true">&larr;</span> Back to 3D scene
@@ -468,6 +605,142 @@
       };
       closeBtn.addEventListener('click', () => setHidden(true));
       showBtn.addEventListener('click', () => setHidden(false));
+    })();
+
+    // ----- Add-WASA-intervention webform -----
+    // No backend: the form collects fields + GPS + a photo, then offers the
+    // result as a clipboard copy or as separate .json / image downloads. The
+    // user (or their data manager) can then email or upload the files
+    // wherever they like.
+    (function () {
+      const overlay = document.getElementById('form-overlay');
+      const form = document.getElementById('wasa-form');
+      const loc = document.getElementById('form-location');
+      const gpsBtn = document.getElementById('form-gps');
+      const status = document.getElementById('form-status');
+      const result = document.getElementById('form-result');
+      const jsonEl = document.getElementById('form-json');
+      let lastSubmission = null;
+      let lastPhotoFile = null;
+
+      function setStatus(msg, kind) {
+        status.textContent = msg || '';
+        status.className = kind || '';
+      }
+      function openForm() { overlay.hidden = false; setStatus(''); }
+      function closeForm() { overlay.hidden = true; }
+
+      document.getElementById('form-open').addEventListener('click', openForm);
+      document.getElementById('form-close').addEventListener('click', closeForm);
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) closeForm(); });
+
+      // GPS capture — uses the browser Geolocation API.
+      gpsBtn.addEventListener('click', () => {
+        if (!navigator.geolocation) {
+          setStatus('Geolocation not supported by this browser.', 'err');
+          return;
+        }
+        gpsBtn.disabled = true;
+        gpsBtn.textContent = '⏳ locating…';
+        setStatus('Asking the device for GPS — allow location access if prompted.', '');
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const { latitude: lat, longitude: lon, accuracy } = pos.coords;
+            loc.value = lat.toFixed(6) + ', ' + lon.toFixed(6);
+            setStatus('GPS captured (±' + Math.round(accuracy) + ' m).', 'ok');
+            gpsBtn.disabled = false;
+            gpsBtn.textContent = '📍 Re-capture';
+          },
+          (err) => {
+            setStatus('Could not get GPS: ' + err.message, 'err');
+            gpsBtn.disabled = false;
+            gpsBtn.textContent = '📍 Get GPS';
+          },
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        );
+      });
+
+      // Reset clears everything including the GPS button label.
+      document.getElementById('form-reset').addEventListener('click', () => {
+        form.reset();
+        loc.value = '';
+        gpsBtn.textContent = '📍 Get GPS';
+        setStatus('Form cleared.', '');
+        result.hidden = true;
+      });
+
+      // Submit: validate, build the JSON record, show the result panel.
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const fd = new FormData(form);
+        const photo = fd.get('photo');
+        if (!photo || photo.size === 0) {
+          setStatus('Please attach a photo.', 'err'); return;
+        }
+        if (!loc.value) {
+          setStatus('Please capture GPS with the 📍 button.', 'err'); return;
+        }
+        const [latStr, lonStr] = loc.value.split(',').map(s => s.trim());
+        const record = {
+          id: 'wasa_' + Date.now(),
+          captured_at: new Date().toISOString(),
+          intervention: fd.get('intervention'),
+          type: fd.get('type'),
+          description: fd.get('description'),
+          location: { lat: parseFloat(latStr), lon: parseFloat(lonStr) },
+          photo: {
+            filename: photo.name,
+            size_bytes: photo.size,
+            mime_type: photo.type,
+          },
+          comment: fd.get('comment') || '',
+          user_agent: navigator.userAgent,
+        };
+        lastSubmission = record;
+        lastPhotoFile = photo;
+        jsonEl.textContent = JSON.stringify(record, null, 2);
+        result.hidden = false;
+        setStatus('Saved — download or copy the record below.', 'ok');
+      });
+
+      document.getElementById('form-copy').addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(JSON.stringify(lastSubmission, null, 2));
+          setStatus('JSON copied to clipboard.', 'ok');
+        } catch (e) { setStatus('Clipboard copy failed: ' + e.message, 'err'); }
+      });
+
+      document.getElementById('form-download-json').addEventListener('click', () => {
+        const blob = new Blob([JSON.stringify(lastSubmission, null, 2)],
+                              { type: 'application/json' });
+        triggerDownload(blob, lastSubmission.id + '.json');
+      });
+
+      document.getElementById('form-download-photo').addEventListener('click', () => {
+        if (!lastPhotoFile) return;
+        // Preserve the original extension while renaming to the record id so
+        // the JSON and photo travel together with the same stem.
+        const ext = (lastPhotoFile.name.match(/\.[^.]+$/) || ['.jpg'])[0];
+        triggerDownload(lastPhotoFile, lastSubmission.id + ext);
+      });
+
+      document.getElementById('form-new').addEventListener('click', () => {
+        form.reset();
+        loc.value = '';
+        gpsBtn.textContent = '📍 Get GPS';
+        result.hidden = true;
+        setStatus('Ready for the next record.', '');
+      });
+
+      function triggerDownload(blob, filename) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
     })();
   </script>
   <!-- type="module" so Vite tracks the file at build time and includes it
