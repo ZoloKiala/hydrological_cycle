@@ -428,12 +428,14 @@
           </div>
         </label>
         <label>
-          Photo (must be geotagged) <span class="req">*</span>
-          <input type="file" name="photo" accept="image/*" capture="environment" required />
+          Photos (at least 3, must be geotagged) <span class="req">*</span>
+          <input type="file" name="photos" accept="image/*" capture="environment" multiple required />
           <small style="display:block;margin-top:4px;color:#9bc7e2">
-            Use a phone with location services ON so EXIF GPS is embedded.
-            The GPS field above is also recorded as a fallback.
+            Pick or take at least 3 photos. Use a phone with location services
+            ON so each photo's EXIF carries GPS. The location field above is
+            also recorded as a fallback.
           </small>
+          <small id="photo-count" style="display:block;margin-top:2px;color:#9bc7e2"></small>
         </label>
         <label>
           Comment
@@ -451,7 +453,7 @@
         <div class="form-actions">
           <button type="button" id="form-copy">Copy JSON</button>
           <button type="button" id="form-download-json">Download .json</button>
-          <button type="button" id="form-download-photo">Download photo</button>
+          <button type="button" id="form-download-photo">Download photos</button>
           <button type="button" class="secondary" id="form-new">+ New entry</button>
         </div>
       </div>
@@ -624,7 +626,8 @@
       const result = document.getElementById('form-result');
       const jsonEl = document.getElementById('form-json');
       let lastSubmission = null;
-      let lastPhotoFile = null;
+      let lastPhotoFiles = [];        // array of File objects from the picker
+      const MIN_PHOTOS = 3;
 
       function setStatus(msg, kind) {
         status.textContent = msg || '';
@@ -663,11 +666,24 @@
         );
       });
 
+      // Live photo-count hint as the user picks files.
+      const photosInput = form.querySelector('input[name="photos"]');
+      const photoCountEl = document.getElementById('photo-count');
+      photosInput.addEventListener('change', () => {
+        const n = photosInput.files.length;
+        photoCountEl.textContent = n
+          ? n + ' photo' + (n === 1 ? '' : 's') + ' selected'
+              + (n < MIN_PHOTOS ? ' — need ' + (MIN_PHOTOS - n) + ' more' : ' ✓')
+          : '';
+        photoCountEl.style.color = (n >= MIN_PHOTOS) ? '#81c784' : '#ff8a65';
+      });
+
       // Reset clears everything including the GPS button label.
       document.getElementById('form-reset').addEventListener('click', () => {
         form.reset();
         loc.value = '';
         gpsBtn.textContent = '📍 Get GPS';
+        photoCountEl.textContent = '';
         setStatus('Form cleared.', '');
         result.hidden = true;
       });
@@ -676,9 +692,11 @@
       form.addEventListener('submit', (e) => {
         e.preventDefault();
         const fd = new FormData(form);
-        const photo = fd.get('photo');
-        if (!photo || photo.size === 0) {
-          setStatus('Please attach a photo.', 'err'); return;
+        const photos = Array.from(photosInput.files || []);
+        if (photos.length < MIN_PHOTOS) {
+          setStatus('Please attach at least ' + MIN_PHOTOS + ' photos (you have '
+                    + photos.length + ').', 'err');
+          return;
         }
         if (!loc.value) {
           setStatus('Please capture GPS with the 📍 button.', 'err'); return;
@@ -691,19 +709,20 @@
           type: fd.get('type'),
           description: fd.get('description'),
           location: { lat: parseFloat(latStr), lon: parseFloat(lonStr) },
-          photo: {
-            filename: photo.name,
-            size_bytes: photo.size,
-            mime_type: photo.type,
-          },
+          photos: photos.map((p, i) => ({
+            index: i + 1,
+            filename: p.name,
+            size_bytes: p.size,
+            mime_type: p.type,
+          })),
           comment: fd.get('comment') || '',
           user_agent: navigator.userAgent,
         };
         lastSubmission = record;
-        lastPhotoFile = photo;
+        lastPhotoFiles = photos;
         jsonEl.textContent = JSON.stringify(record, null, 2);
         result.hidden = false;
-        setStatus('Saved — download or copy the record below.', 'ok');
+        setStatus('Saved ' + photos.length + ' photos. Download or copy below.', 'ok');
       });
 
       document.getElementById('form-copy').addEventListener('click', async () => {
@@ -720,17 +739,22 @@
       });
 
       document.getElementById('form-download-photo').addEventListener('click', () => {
-        if (!lastPhotoFile) return;
-        // Preserve the original extension while renaming to the record id so
-        // the JSON and photo travel together with the same stem.
-        const ext = (lastPhotoFile.name.match(/\.[^.]+$/) || ['.jpg'])[0];
-        triggerDownload(lastPhotoFile, lastSubmission.id + ext);
+        if (!lastPhotoFiles.length) return;
+        // Trigger one download per photo, spaced ~150 ms apart so the browser
+        // doesn't squash them together. Filenames: recordid_N.ext so the
+        // JSON's `photos[].index` aligns with the file stem.
+        lastPhotoFiles.forEach((p, i) => {
+          const ext = (p.name.match(/\.[^.]+$/) || ['.jpg'])[0];
+          const name = lastSubmission.id + '_' + (i + 1) + ext;
+          setTimeout(() => triggerDownload(p, name), i * 150);
+        });
       });
 
       document.getElementById('form-new').addEventListener('click', () => {
         form.reset();
         loc.value = '';
         gpsBtn.textContent = '📍 Get GPS';
+        photoCountEl.textContent = '';
         result.hidden = true;
         setStatus('Ready for the next record.', '');
       });
