@@ -1,150 +1,267 @@
 // WASA on a real landscape — CesiumJS 3D globe.
 //
-// Replaces the earlier Google Maps version. Same eight WASA interventions and
-// the same fictional Mwankhokwe pilot watershed in southern Malawi, rendered
-// on a true 3D globe so terrain elevation, tilt, and rotation are real.
+// Plots the real WASA Intervention Inventory submissions (KoBoToolbox) on a
+// true 3D globe across southern Malawi, so terrain elevation, tilt, and
+// rotation are real. Each marker is one field-recorded intervention/activity.
 //
 // Token: a Cesium Ion access token unlocks Cesium World Terrain (real hills)
 // and Bing Aerial imagery. Without it the scene still works — we fall back to
 // Esri World Imagery on a flat ellipsoid. Pass it via the URL:
 //   wasa-map.html?token=eyJhbGciOi...
 
-// ---------- DEMO LOCATION ----------
-// Centred on Blantyre, southern Malawi — where Mapillary has dense crowd-
-// sourced street-level coverage. The watershed and intervention sites are
-// still fictional (placed for the visualisation) but they sit on real roads
-// so the Mapillary Street View viewer can find imagery near every marker.
-const CENTRE = { lat: -15.7861, lng: 35.0058 };
-
-const WATERSHED = [
-  [-15.7760, 34.9970],
-  [-15.7775, 35.0150],
-  [-15.7945, 35.0170],
-  [-15.7965, 35.0000],
-  [-15.7850, 34.9960],
-];
-
-const RIVER = [
-  [-15.7790, 35.0000],
-  [-15.7830, 35.0050],
-  [-15.7870, 35.0080],
-  [-15.7905, 35.0105],
-  [-15.7935, 35.0130],
-  [-15.7960, 35.0160],
-];
-
-// ---------- WASA INTERVENTIONS ----------
-// `range` (metres above ground) and `pitch` (degrees, negative = look down)
-// are tuned for Cesium's flyToBoundingSphere / lookAt style flight.
+// ---------- WASA INTERVENTION INVENTORY (real field data) ----------
+// Real submissions from the KoBoToolbox "WASA Intervention Inventory" form
+// (export: all versions, en, 2026-06-11). Each record is a WASA intervention
+// or activity an enumerator visited across southern Malawi, with a GPS point,
+// a field description, and geotagged photos.
 //
-// `image` URLs are a mix of LoremFlickr (tag-matched Flickr placeholders),
-// Wikimedia Commons (real topical photos via Special:FilePath), and bundled
-// local files (via the `new URL(./...)` pattern Vite recognises at build
-// time — same file works under the plain dev server and the hashed prod
-// bundle). Swap individual entries with real WASA photos as you collect them.
-const afforestationImage = new URL('./afforestation.jpg', import.meta.url).href;
-
+// The original photos are gated behind KoBo authentication, so they were
+// downloaded once, auto-rotated (EXIF), downscaled, and bundled under
+// ./photos/ — that way they display in the cards / info-boxes with no login.
+// `image` (the card thumbnail) is derived from the first photo just below the
+// array. Descriptions and comments are kept VERBATIM as submitted.
+//
+// Per-record fields:
+//   icon       single-letter category badge (A/B/D/F, or O for "Other")
+//   category   broad WASA intervention category
+//   title      specific activity / sub-category recorded in the field
+//   text       enumerator's description (verbatim)
+//   enumerator who submitted the record
+//   comments   additional comments (may be empty)
+//   photos     bundled local photo paths
+//   pos        [lat, lng] GPS point captured on site
+//   range/heading/pitch  camera framing for the fly-to / walk-mode
 const interventions = [
   {
-    icon: 'A',
-    title: 'Afforestation & Agroforestry',
+    icon: 'D',
+    category: 'Erosion Control & Riparian Buffers',
+    title: 'Check dam and vetiver grass planting',
     text:
-      'Replants tree cover on cleared mountain slopes, pumping moisture back into the atmosphere ' +
-      'through transpiration and anchoring topsoil. Agroforestry rows mix trees with food crops.',
-    impact: 'Recovers transpiration, recharges groundwater, anchors soil',
-    // Local bundled photo (afforestation.jpg at repo root). Vite picks it
-    // up via the new URL(./...) pattern and bundles to dist/assets/.
-    image: afforestationImage,
-    pos: [-15.7795, 35.0015],
-    range: 600, heading: 60, pitch: -35,
+      `Communities were mobilised to conduct gully reclamation through the construction of check dams and planting vetiver grass. The initiative is aimed at controlling run off water coming down from Chingozi mountain which erodes fertile top soil, causes mudslides, destroys people's houses. Communities surrounding Chingozi have constructed 397 check dams using stones covering up to 11.5 hectares of land. The check dams are constructed in gullies that are in the mountain. There are 20 gullies on which check dams have been constructed with the shortest gully having 7 check dams and the longest has 42 check dams`,
+    enumerator: 'Alinafe Mbiri',
+    comments: 'Local leaders have continued mobilising the people to continue working and they meet once a week for the work',
+    photos: ['photos/site01-1.jpg', 'photos/site01-2.jpg', 'photos/site01-3.jpg'],
+    pos: [-16.098779, 35.577965],
+    range: 500, heading: 0, pitch: -40,
   },
   {
     icon: 'B',
-    title: 'Conservation Agriculture',
+    category: 'Conservation Agriculture',
+    title: 'Manure making and application',
     text:
-      'Minimum tillage, mulching, and cover crops keep soils porous and shaded. Rainfall infiltrates ' +
-      'instead of running off; organic matter triples soil water-holding capacity.',
-    impact: 'Higher infiltration, lower evaporation loss',
-    // Wikimedia Commons photo of conservation-agriculture practices in
-    // Dar es Salaam, Tanzania — real African field setting.
-    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Agricultural%20activities%20as%20part%20of%20environmental%20conservation%20as%20seen%20in%20Dar%20es%20Salaam%2C%20Tanzania%20IZZD8108.jpg?width=640',
-    pos: [-15.7840, 35.0040],
-    range: 400, heading: 20, pitch: -40,
+      `Three types of manure promoted in the village. Materials required to make organic manure include ash, maize stoves, virgin soil, watered at intervals amd livestock manure. Targeting to make 2,000 heaps reaching out to 250 households.`,
+    enumerator: 'David Munthali',
+    comments: 'Farmer 1 is targetting to make 13 heaps and so far made 4 heaps.  Each farmer targets to make between 4 to 20 and the mani challenge is access to livestock manure',
+    photos: ['photos/site02-1.jpg', 'photos/site02-2.jpg', 'photos/site02-3.jpg', 'photos/site02-4.jpg'],
+    pos: [-16.101347, 35.577653],
+    range: 500, heading: 0, pitch: -40,
   },
   {
-    icon: 'C',
-    title: 'Tied Ridges & Soil Ripping',
+    icon: 'B',
+    category: 'Conservation Agriculture',
+    title: 'Mulching and intercropping maize and beans',
     text:
-      'Small earthen cross-ridges trap rainfall where it falls; soil rippers break compacted layers ' +
-      'so water moves into the root zone. Crops survive erratic-rainfall seasons.',
-    impact: 'In-situ rainwater capture, deeper percolation',
-    // Wikimedia Commons photo from Category:Contour_farming — actual
-    // contour-ridge field, the closest visual analogue to tied ridges.
-    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Contour%20Farming01%20(23972931847).jpg?width=640',
-    pos: [-15.7880, 35.0090],
-    range: 400, heading: 340, pitch: -40,
+      `A demo plot where maize is intercropped with bean and mulched in an irrigation scheme. The has 165 farmers covering 18 hectares. Main crops include maize, tomato, beans and vegetables`,
+    enumerator: 'David Munthali',
+    comments: 'A total of 165 farmers where 101 are f3male and 10 are youth farmers and 3 PWDs',
+    photos: ['photos/site03-1.jpg', 'photos/site03-2.jpg', 'photos/site03-3.jpg', 'photos/site03-4.jpg', 'photos/site03-5.jpg'],
+    pos: [-16.049778, 35.779790],
+    range: 500, heading: 0, pitch: -40,
   },
   {
-    icon: 'D',
-    title: 'Erosion Control & Riparian Buffers',
+    icon: 'A',
+    category: 'Afforestation & Agroforestry',
+    title: 'Soil fertility tree',
     text:
-      'Contour bunds, mulch strips, and grass tufts hold rainfall on the slope above the gully. ' +
-      'Riparian buffers along the river trap sediment before it reaches downstream water bodies.',
-    impact: 'Protected topsoil, reduced sediment in rivers',
-    image: 'https://loremflickr.com/640/240/erosion,gully,soil/all?lock=4',
-    pos: [-15.7915, 35.0050],
-    range: 500, heading: 110, pitch: -35,
-  },
-  {
-    icon: 'E',
-    title: 'Rainwater Harvesting & Farm Ponds',
-    text:
-      'Two linked farm ponds store wet-season runoff for dry-season use. Inflow from the stream, ' +
-      'outflow tied to terraced fields. The system recharges shallow groundwater and supports life year-round.',
-    impact: 'Year-round water access, groundwater recharge',
-    // Wikimedia Commons photo of a rainwater-harvesting plastic-lined pond
-    // — exact topic match for the Rainwater Harvesting & Farm Ponds card.
-    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Rainwater%20Harvesting%20and%20Plastic%20Pond%202.JPG?width=640',
-    pos: [-15.7855, 35.0125],
-    range: 400, heading: 0, pitch: -45,
+      `A total of 625 trees planted in with each farmer planting 5 trees. with 90% survival. The types of trees include Glycidia, Acadia,`,
+    enumerator: 'Elinat Mtupanyama',
+    comments: '',
+    photos: ['photos/site04-1.jpg', 'photos/site04-2.jpg', 'photos/site04-3.jpg', 'photos/site04-4.jpg'],
+    pos: [-16.101005, 35.578165],
+    range: 500, heading: 0, pitch: -40,
   },
   {
     icon: 'F',
-    title: 'Green Infrastructure',
+    category: 'Green Infrastructure',
+    title: 'tied riggin',
     text:
-      'Restored wetlands and small check dams flatten flood peaks and extend dry-season base flow. ' +
-      'The watershed acts like a sponge instead of a fast pipe to the river.',
-    impact: 'Lower flood peaks, longer base flow',
-    // Wikimedia Commons photo of a stone check dam in May Be'ati, Ethiopia
-    // — concrete example of the "small check dam" green-infrastructure
-    // measure described on this card. (%27 is the URL-encoded apostrophe.)
-    image: "https://commons.wikimedia.org/wiki/Special:FilePath/Check%20dam%20in%20May%20Be%27ati.jpg?width=640",
-    pos: [-15.7930, 35.0110],
-    range: 500, heading: 70, pitch: -35,
+      `WInter croppibg`,
+    enumerator: 'Elinat Mtupanyana',
+    comments: '',
+    photos: ['photos/site05-1.jpg', 'photos/site05-2.jpg', 'photos/site05-3.jpg'],
+    pos: [-16.049048, 35.779828],
+    range: 500, heading: 0, pitch: -40,
   },
   {
-    icon: 'G',
-    title: 'Community Watershed Governance',
+    icon: 'O',
+    category: 'Other activity',
+    title: 'Technical support visit',
     text:
-      'A local watershed committee — convened in the village near the outlet — decides where ponds and ' +
-      'forest patches go, enforces grazing rules, and maintains the interventions between seasons.',
+      `Visiting kambenje honey producer group. The group has 22 members with 10 male and 12 females no youth`,
+    enumerator: 'Ekinat Mtuoanyama',
+    comments: '',
+    photos: ['photos/site06-1.jpg', 'photos/site06-2.jpg', 'photos/site06-3.jpg'],
+    pos: [-15.901048, 35.492097],
+    range: 500, heading: 0, pitch: -40,
+  },
+  {
+    icon: 'B',
+    category: 'Conservation Agriculture',
+    title: 'Winter season intercopping',
+    text:
+      `This is a demonstration plot for inter-cropping. Have planted maize and common beans. The beans aim to add nutrients to the soil. The plot is 30 m by 15 m. 300 farmers are learning from this plot.  The maize was planted on 15th May, 2026 and the beans on 29th May, 2026.`,
+    enumerator: 'Mwanjiwa Lipenga',
+    comments: 'The demonstration plot is benefitting a large number of farmers (300) who have shown interest to implement  in their respective groups',
+    photos: ['photos/site07-1.jpg', 'photos/site07-2.jpg', 'photos/site07-3.jpg', 'photos/site07-4.jpg', 'photos/site07-5.jpg'],
+    pos: [-15.839959, 34.831323],
+    range: 500, heading: 0, pitch: -40,
+  },
+  {
+    icon: 'D',
+    category: 'Erosion Control & Riparian Buffers',
+    title: 'Tree cover replenishment across slope',
+    text:
+      `Firebreak maintenance, tree planting 904 in total. Tree species include cacia, and mtangatanga`,
+    enumerator: 'Baxton Chirombo',
+    comments: '',
+    photos: ['photos/site08-1.jpg', 'photos/site08-2.jpg', 'photos/site08-3.jpg', 'photos/site08-4.jpg'],
+    pos: [-15.836699, 34.820396],
+    range: 500, heading: 0, pitch: -40,
+  },
+  {
+    icon: 'D',
+    category: 'Erosion Control & Riparian Buffers',
+    title: 'Check dam and soil ripping',
+    text:
+      `Banana planting for river bank protection and check dams for land reclamation`,
+    enumerator: 'Baxton Chirombo',
+    comments: '',
+    photos: ['photos/site09-1.jpg', 'photos/site09-2.jpg', 'photos/site09-3.jpg', 'photos/site09-4.jpg', 'photos/site09-5.jpg'],
+    pos: [-15.836819, 34.819956],
+    range: 500, heading: 0, pitch: -40,
+  },
+  {
+    icon: 'B',
+    category: 'Conservation Agriculture',
+    title: 'Live fencing with green manure',
+    text:
+      `Live fencing with Gliricidia seedlings on a horticultural field measuring. 1.25 acres Being done under drip irrigation. The gliricidia was planted on 27 th April, 2026. The field is being managed by 16 people (1 male and 15 females). The field is a learning/ demonstration plot where 653 farmers learn from it  Farmers who learn from it has shown interest to plant the gliriciidia in their farms.`,
+    enumerator: 'Mwanjiwa Lipenga',
+    comments: "This intervention will help add nutrients to the soil according to Mr Malinga the group's farmer support agent (FSA).",
+    photos: ['photos/site10-1.jpg', 'photos/site10-2.jpg', 'photos/site10-3.jpg', 'photos/site10-4.jpg', 'photos/site10-5.jpg'],
+    pos: [-16.438795, 34.835082],
+    range: 500, heading: 0, pitch: -40,
+  },
+  {
+    icon: 'O',
+    category: 'Other activity',
+    title: 'ADC Sensitization Meeting',
+    text:
+      `Making an awareness of the Water and Soil Accelerator Prooject to local leaders.50 members participated 16 women and 36`,
+    enumerator: 'Elinat Mtuoanyama',
+    comments: '',
+    photos: ['photos/site11-1.jpg', 'photos/site11-2.jpg', 'photos/site11-3.jpg'],
+    pos: [-15.886059, 35.482130],
+    range: 500, heading: 0, pitch: -40,
+  },
+  {
+    icon: 'D',
+    category: 'Erosion Control & Riparian Buffers',
+    title: 'VDC Meeting (Gvh Nogwe)',
+    text:
+      `Village sensitization meeting at Gvh Nogwe 1541 attended 1123 females and 418 men`,
+    enumerator: 'Elinat Ntuoabyana',
+    comments: '',
+    photos: ['photos/site12-1.jpg', 'photos/site12-2.jpg', 'photos/site12-3.jpg'],
+    pos: [-15.854512, 35.559447],
+    range: 500, heading: 0, pitch: -40,
+  },
+  {
+    icon: 'O',
+    category: 'Other activity',
+    title: 'VDC Meeting (GVH Kambenje)',
+    text:
+      `Making an awareness on water and soil accelerator project at GVH KAmbenje in TA NKanda`,
+    enumerator: 'Elinat Mtupanyama',
+    comments: 'Meeting successfully done',
+    photos: ['photos/site13-1.jpg', 'photos/site13-2.jpg', 'photos/site13-3.jpg', 'photos/site13-4.jpg', 'photos/site13-5.jpg'],
+    pos: [-15.854498, 35.559437],
+    range: 500, heading: 0, pitch: -40,
+  },
+];
+
+// `image` (used by the Street-View static photo fallback) is simply the first
+// bundled photo for each record.
+interventions.forEach((iv) => { iv.image = iv.photos[0]; });
+
+// ---------- WASA SOLUTIONS (side-panel cards) ----------
+// The panel is the WASA "solutions" explainer (as before): one card per
+// intervention category, describing what it does and how it improves the water
+// cycle. The real field submissions live on the MAP (the markers), not here —
+// each solution card's buttons fly/walk/Street-View to the recorded sites of
+// that category. Names/order follow the KoBo form's `choices` sheet.
+//
+// Declared ABOVE the init() IIFE deliberately: with no Cesium ?token, init()
+// runs synchronously to its end and calls buildCards() before any const
+// declared *after* the IIFE would be initialised — so these must exist first.
+const afforestationImage = new URL('./afforestation.jpg', import.meta.url).href;
+
+const SOLUTIONS = [
+  {
+    letter: 'A', name: 'Afforestation & Agroforestry',
+    text: 'Replants tree cover on cleared mountain slopes, pumping moisture back into the atmosphere ' +
+      'through transpiration and anchoring topsoil. Agroforestry rows mix trees with food crops.',
+    impact: 'Recovers transpiration, recharges groundwater, anchors soil',
+    image: afforestationImage,
+  },
+  {
+    letter: 'B', name: 'Conservation Agriculture',
+    text: 'Minimum tillage, mulching, and cover crops keep soils porous and shaded. Rainfall infiltrates ' +
+      'instead of running off; organic matter triples soil water-holding capacity.',
+    impact: 'Higher infiltration, lower evaporation loss',
+    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Agricultural%20activities%20as%20part%20of%20environmental%20conservation%20as%20seen%20in%20Dar%20es%20Salaam%2C%20Tanzania%20IZZD8108.jpg?width=640',
+  },
+  {
+    letter: 'C', name: 'Tied Ridges & Soil Ripping',
+    text: 'Small earthen cross-ridges trap rainfall where it falls; soil rippers break compacted layers ' +
+      'so water moves into the root zone. Crops survive erratic-rainfall seasons.',
+    impact: 'In-situ rainwater capture, deeper percolation',
+    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Contour%20Farming01%20(23972931847).jpg?width=640',
+  },
+  {
+    letter: 'D', name: 'Erosion Control & Riparian Buffers',
+    text: 'Contour bunds, mulch strips, and grass tufts hold rainfall on the slope above the gully. ' +
+      'Riparian buffers along the river trap sediment before it reaches downstream water bodies.',
+    impact: 'Protected topsoil, reduced sediment in rivers',
+    image: 'https://loremflickr.com/640/240/erosion,gully,soil/all?lock=4',
+  },
+  {
+    letter: 'E', name: 'Rainwater Harvesting & Farm Ponds',
+    text: 'Linked farm ponds store wet-season runoff for dry-season use. Inflow from the stream, ' +
+      'outflow tied to terraced fields. The system recharges shallow groundwater and supports life year-round.',
+    impact: 'Year-round water access, groundwater recharge',
+    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Rainwater%20Harvesting%20and%20Plastic%20Pond%202.JPG?width=640',
+  },
+  {
+    letter: 'F', name: 'Green Infrastructure',
+    text: 'Restored wetlands and small check dams flatten flood peaks and extend dry-season base flow. ' +
+      'The landscape acts like a sponge instead of a fast pipe to the river.',
+    impact: 'Lower flood peaks, longer base flow',
+    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Check%20dam%20in%20May%20Be%27ati.jpg?width=640',
+  },
+  {
+    letter: 'G', name: 'Community Watershed Governance',
+    text: 'A local watershed committee decides where ponds and forest patches go, enforces grazing rules, ' +
+      'and maintains the interventions between seasons.',
     impact: 'Durable, locally-owned landscape stewardship',
     image: 'https://loremflickr.com/640/240/village,community,africa/all?lock=7',
-    pos: [-15.7861, 35.0058],
-    range: 1800, heading: 0, pitch: -55,
   },
   {
-    icon: 'H',
-    title: 'Climate Information Services',
-    text:
-      'Seasonal forecasts and on-time advisories are broadcast from the school on the ridge. ' +
-      'Farmers plant, irrigate, and harvest at the right moment — more crop per millimetre of rain.',
+    letter: 'H', name: 'Climate Information Services',
+    text: 'Seasonal forecasts and on-time advisories reach farmers so they plant, irrigate, and harvest at ' +
+      'the right moment — more crop per millimetre of rain.',
     impact: 'More crop per drop, fewer failed seasons',
-    // Wikimedia Commons photo of an agrometeorological weather station in a
-    // field — the literal source of seasonal forecasts and on-time advisories.
     image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Agrometeorologia%20Epagri%20Ciram.jpg?width=640',
-    pos: [-15.7800, 35.0080],
-    range: 600, heading: 200, pitch: -35,
   },
 ];
 
@@ -157,8 +274,6 @@ const interventions = [
 
   if (token) {
     Cesium.Ion.defaultAccessToken = token;
-  } else {
-    document.getElementById('token-notice').style.display = 'block';
   }
 
   // --- Imagery: Esri World Imagery is free and needs no token. The URL
@@ -229,50 +344,9 @@ const interventions = [
   viewer.scene.fog.enabled = true;
   viewer.scene.skyAtmosphere.show = true;
 
-  // ---------- WATERSHED BOUNDARY ----------
-  viewer.entities.add({
-    name: 'Mwankhokwe pilot watershed (fictional)',
-    polygon: {
-      hierarchy: new Cesium.PolygonHierarchy(
-        Cesium.Cartesian3.fromDegreesArray(
-          // PolygonHierarchy expects [lng, lat, lng, lat, ...]
-          WATERSHED.flatMap(([lat, lng]) => [lng, lat])
-        )
-      ),
-      material: Cesium.Color.fromCssColorString('#ffd54f').withAlpha(0.12),
-      outline: false,         // outlines on filled polygons render unreliably; use polyline below
-      classificationType: Cesium.ClassificationType.TERRAIN,
-    },
-  });
-  // Dashed-yellow outline drawn separately for crispness.
-  const ringPositions = WATERSHED.concat([WATERSHED[0]]).flatMap(([lat, lng]) => [lng, lat]);
-  viewer.entities.add({
-    polyline: {
-      positions: Cesium.Cartesian3.fromDegreesArray(ringPositions),
-      width: 2,
-      material: new Cesium.PolylineDashMaterialProperty({
-        color: Cesium.Color.fromCssColorString('#ffd54f'),
-        dashLength: 16,
-      }),
-      clampToGround: true,
-    },
-  });
-
-  // ---------- RIVER POLYLINE ----------
-  viewer.entities.add({
-    name: 'Watershed outlet (stream)',
-    polyline: {
-      positions: Cesium.Cartesian3.fromDegreesArray(
-        RIVER.flatMap(([lat, lng]) => [lng, lat])
-      ),
-      width: 5,
-      material: new Cesium.PolylineGlowMaterialProperty({
-        glowPower: 0.25,
-        color: Cesium.Color.fromCssColorString('#4fc3f7'),
-      }),
-      clampToGround: true,
-    },
-  });
+  // The fictional watershed polygon and river polyline were removed: the real
+  // inventory points span a large region of southern Malawi, so a single small
+  // demo catchment no longer applies.
 
   // ---------- INTERVENTION MARKERS ----------
   const entityById = new Map();
@@ -280,7 +354,7 @@ const interventions = [
     const [lat, lng] = iv.pos;
     const entity = viewer.entities.add({
       id: 'wasa-' + idx,
-      name: iv.icon + ' · ' + iv.title,
+      name: iv.icon + ' · ' + iv.category,
       position: Cesium.Cartesian3.fromDegrees(lng, lat),
       point: {
         pixelSize: 26,
@@ -301,14 +375,33 @@ const interventions = [
         heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
       },
-      description:
-        '<div style="font-family:Segoe UI,sans-serif;font-size:13px;line-height:1.5">' +
-          '<p>' + escapeHtml(iv.text) + '</p>' +
-          '<p style="color:#ffd54f;font-weight:600">Water cycle: ' + escapeHtml(iv.impact) + '</p>' +
-        '</div>',
+      description: buildDescription(iv),
     });
     entityById.set(idx, entity);
   });
+
+  // Marker styling for the "selected" state. When a solution category with
+  // several recorded sites is focused, every one of its markers is enlarged and
+  // ringed in cyan so all the locations stand out at once (Cesium's built-in
+  // selection only holds one entity, so we restyle the points ourselves).
+  const MARKER_NORMAL = {
+    pixelSize: 26,
+    outlineColor: Cesium.Color.fromCssColorString('#0a1820'),
+    outlineWidth: 2,
+  };
+  const MARKER_SELECTED = {
+    pixelSize: 36,
+    outlineColor: Cesium.Color.fromCssColorString('#4fc3f7'),
+    outlineWidth: 4,
+  };
+  function highlightSites(idxSet) {
+    entityById.forEach((entity, i) => {
+      const s = idxSet && idxSet.has(i) ? MARKER_SELECTED : MARKER_NORMAL;
+      entity.point.pixelSize = s.pixelSize;
+      entity.point.outlineColor = s.outlineColor;
+      entity.point.outlineWidth = s.outlineWidth;
+    });
+  }
 
   // ---------- SCALE BAR + NORTH ARROW + SEARCH + COORDS ----------
   // Cam-controls removed (Cesium's native input covers pan/tilt/zoom).
@@ -317,21 +410,22 @@ const interventions = [
   setupNorthArrow(viewer);
   setupLocationSearch(viewer);
   setupCursorCoordinates(viewer);
+  setupPhotoLightbox(viewer);
 
   // ---------- INITIAL CAMERA ----------
-  // Frame the watershed polygon itself: compute its bounding sphere and fly
-  // the camera to a sensible standoff so the whole polygon is in view, tilted
-  // ~55° downward for an oblique perspective.
-  const watershedPositions = WATERSHED.map(([lat, lng]) =>
-    Cesium.Cartesian3.fromDegrees(lng, lat)
+  // Frame ALL intervention sites: compute the bounding sphere of every real
+  // GPS point and fly the camera to a standoff that keeps them all in view,
+  // tilted ~50° downward for an oblique perspective. Reused on walk-mode exit.
+  const sitePositions = interventions.map((iv) =>
+    Cesium.Cartesian3.fromDegrees(iv.pos[1], iv.pos[0])
   );
-  const watershedSphere = Cesium.BoundingSphere.fromPoints(watershedPositions);
-  viewer.camera.flyToBoundingSphere(watershedSphere, {
+  const sitesSphere = Cesium.BoundingSphere.fromPoints(sitePositions);
+  viewer.camera.flyToBoundingSphere(sitesSphere, {
     duration: 0,
     offset: new Cesium.HeadingPitchRange(
       0,
-      Cesium.Math.toRadians(-55),
-      watershedSphere.radius * 3.0
+      Cesium.Math.toRadians(-50),
+      sitesSphere.radius * 2.2
     ),
   });
 
@@ -340,6 +434,10 @@ const interventions = [
     const iv = interventions[idx];
     const [lat, lng] = iv.pos;
     const target = Cesium.Cartesian3.fromDegrees(lng, lat);
+
+    // Single site: drop any multi-site group highlight and use Cesium's normal
+    // one-entity selection (selection indicator + info box).
+    highlightSites(null);
 
     // Cesium's flyToBoundingSphere gives nice cinematic easing and respects
     // heading/pitch/range. We build a zero-radius sphere at the target so
@@ -354,6 +452,34 @@ const interventions = [
       complete: () => {
         viewer.selectedEntity = entityById.get(idx);
       },
+    });
+  }
+
+  // Focus every recorded site of one WASA solution category (the marker letter).
+  // A solution panel card's "Fly to site(s)" button uses this: a single site
+  // flies in and is selected like a marker click; when there are several, ALL
+  // of that category's markers are highlighted and framed together. No-op if a
+  // category has no submissions yet.
+  function focusCategory(letter) {
+    const idxs = [];
+    interventions.forEach((iv, i) => { if (iv.icon === letter) idxs.push(i); });
+    if (!idxs.length) return;
+    if (idxs.length === 1) { focusIntervention(idxs[0]); return; }
+
+    // Highlight all the category's markers. Clear single-entity selection so it
+    // doesn't compete with the group highlight / leave a stale info box open.
+    highlightSites(new Set(idxs));
+    viewer.selectedEntity = undefined;
+
+    const pts = idxs.map((i) =>
+      Cesium.Cartesian3.fromDegrees(interventions[i].pos[1], interventions[i].pos[0])
+    );
+    const sphere = Cesium.BoundingSphere.fromPoints(pts);
+    viewer.camera.flyToBoundingSphere(sphere, {
+      duration: 1.6,
+      offset: new Cesium.HeadingPitchRange(
+        0, Cesium.Math.toRadians(-45), Math.max(sphere.radius * 2.5, 1200)
+      ),
     });
   }
 
@@ -414,21 +540,17 @@ const interventions = [
     detachFps();
     // Fly back to the intervention site we walked at (same framing as the
     // "Fly to site" button). If we somehow lost the index, fall back to the
-    // watershed overview.
+    // all-sites overview.
     const idx = walkingFromIdx;
     walkingFromIdx = null;
     if (idx !== null && interventions[idx]) {
       focusIntervention(idx);
       return;
     }
-    const positions = WATERSHED.map(([lat, lng]) =>
-      Cesium.Cartesian3.fromDegrees(lng, lat)
-    );
-    const sphere = Cesium.BoundingSphere.fromPoints(positions);
-    viewer.camera.flyToBoundingSphere(sphere, {
+    viewer.camera.flyToBoundingSphere(sitesSphere, {
       duration: 1.4,
       offset: new Cesium.HeadingPitchRange(
-        0, Cesium.Math.toRadians(-55), sphere.radius * 3.0
+        0, Cesium.Math.toRadians(-50), sitesSphere.radius * 2.2
       ),
     });
   }
@@ -729,6 +851,7 @@ const interventions = [
 
   // Expose for the cards builder; also used by the marker click below.
   window.__focusIntervention = focusIntervention;
+  window.__focusCategory = focusCategory;
   window.__walkAt = enterWalkMode;
   window.__streetView = openStreetView;
 
@@ -746,36 +869,68 @@ const interventions = [
   buildCards();
 })();
 
-// ---------- SIDE PANEL ----------
+// ---------- SIDE PANEL: WASA SOLUTIONS ----------
+// `SOLUTIONS` and `afforestationImage` are declared above the init() IIFE so
+// they are initialised before buildCards() runs — see the note there.
 function buildCards() {
   const container = document.getElementById('map-cards');
   const frag = document.createDocumentFragment();
+
+  // Which recorded sites belong to each solution category, and the first one
+  // (used as the Walk/Street-View target). Categories with no submissions yet
+  // → buttons replaced by a "No sites recorded yet" note.
+  const firstIdx = {};
+  const count = {};
   interventions.forEach((iv, idx) => {
-    const card = document.createElement('div');
-    card.className = 'map-card';
+    if (firstIdx[iv.icon] === undefined) firstIdx[iv.icon] = idx;
+    count[iv.icon] = (count[iv.icon] || 0) + 1;
+  });
 
-    const head = document.createElement('div');
-    head.className = 'map-card-head';
-    const ic = document.createElement('span');
-    ic.className = 'map-icon';
-    ic.textContent = iv.icon;
-    const h = document.createElement('h3');
-    h.textContent = iv.title;
-    head.append(ic, h);
+  SOLUTIONS.forEach((sol) => {
+    frag.appendChild(buildCard(sol, firstIdx[sol.letter], count[sol.letter] || 0));
+  });
 
-    const desc = document.createElement('p');
-    desc.textContent = iv.text;
+  container.replaceChildren(frag);
+}
 
-    const impact = document.createElement('div');
-    impact.className = 'map-impact';
-    impact.textContent = 'Water cycle: ' + iv.impact;
+function buildCard(sol, siteIdx, siteCount) {
+  const hasSites = siteIdx !== undefined;
 
+  const card = document.createElement('div');
+  card.className = 'map-card' + (hasSites ? '' : ' no-sites');
+
+  const thumb = document.createElement('img');
+  thumb.className = 'map-card-img';
+  thumb.src = sol.image;
+  thumb.alt = sol.name;
+  thumb.loading = 'lazy';
+  thumb.referrerPolicy = 'no-referrer';
+
+  const head = document.createElement('div');
+  head.className = 'map-card-head';
+  const ic = document.createElement('span');
+  ic.className = 'map-icon';
+  ic.textContent = sol.letter;
+  const h = document.createElement('h3');
+  h.textContent = sol.name;
+  head.append(ic, h);
+
+  const desc = document.createElement('p');
+  desc.textContent = sol.text;
+
+  const impact = document.createElement('div');
+  impact.className = 'map-impact';
+  impact.textContent = 'Water cycle: ' + sol.impact;
+
+  card.append(thumb, head, desc, impact);
+
+  if (hasSites) {
     const btn = document.createElement('button');
     btn.className = 'map-focus-btn';
     btn.type = 'button';
-    btn.textContent = 'Fly to site';
+    btn.textContent = siteCount > 1 ? ('Fly to sites (' + siteCount + ')') : 'Fly to site';
     btn.addEventListener('click', () => {
-      if (window.__focusIntervention) window.__focusIntervention(idx);
+      if (window.__focusCategory) window.__focusCategory(sol.letter);
     });
 
     const walkBtn = document.createElement('button');
@@ -784,7 +939,7 @@ function buildCards() {
     walkBtn.textContent = 'Walk here';
     walkBtn.title = 'Drop the camera to ground level and walk around (WASD / drag to look / Esc to exit)';
     walkBtn.addEventListener('click', () => {
-      if (window.__walkAt) window.__walkAt(idx);
+      if (window.__walkAt) window.__walkAt(siteIdx);
     });
 
     const streetBtn = document.createElement('button');
@@ -793,27 +948,46 @@ function buildCards() {
     streetBtn.textContent = 'Street View';
     streetBtn.title = 'Open Mapillary Street View — real ground-level photos near this site';
     streetBtn.addEventListener('click', () => {
-      if (window.__streetView) window.__streetView(idx);
+      if (window.__streetView) window.__streetView(siteIdx);
     });
 
-    // Topical photo thumbnail via LoremFlickr (real Flickr CC photos tag-matched
-    // to this intervention). Swap with a curated image when one is available.
-    const thumb = document.createElement('img');
-    thumb.className = 'map-card-img';
-    thumb.src = iv.image;
-    thumb.alt = iv.title;
-    thumb.loading = 'lazy';
-    thumb.referrerPolicy = 'no-referrer';
+    card.append(btn, walkBtn, streetBtn);
+  } else {
+    const note = document.createElement('div');
+    note.className = 'map-no-sites';
+    note.textContent = 'No sites recorded yet';
+    card.append(note);
+  }
 
-    card.append(thumb, head, desc, impact, btn, walkBtn, streetBtn);
-    frag.appendChild(card);
-  });
-  container.replaceChildren(frag);
+  return card;
 }
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// Cesium InfoBox HTML for one intervention: category, the field description,
+// any extra comments, who recorded it, and a thumbnail strip of every photo.
+// Clicking a photo opens the on-page lightbox (setupPhotoLightbox intercepts
+// the click); target="_blank" is the fallback if that can't attach.
+function buildDescription(iv) {
+  const photos = (iv.photos || []).map(src =>
+    '<a class="wasa-photo" href="' + src + '" target="_blank" rel="noopener">' +
+      '<img src="' + src + '" alt="" loading="lazy" ' +
+        'style="width:88px;height:66px;object-fit:cover;border-radius:5px;cursor:zoom-in;' +
+        'border:1px solid rgba(255,255,255,0.18)"></a>'
+  ).join('');
+  return '<div style="font-family:Segoe UI,sans-serif;font-size:13px;line-height:1.5">' +
+    '<div style="color:#ffd54f;font-weight:600;font-size:13px;margin-bottom:4px">' +
+      escapeHtml(iv.title) + '</div>' +
+    '<p>' + escapeHtml(iv.text) + '</p>' +
+    (iv.comments
+      ? '<p style="color:#cfe4f1"><em>' + escapeHtml(iv.comments) + '</em></p>' : '') +
+    '<p style="color:#9bc7e2;font-size:12px">Recorded by ' + escapeHtml(iv.enumerator) + '</p>' +
+    (photos
+      ? '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px">' + photos + '</div>' : '') +
+  '</div>';
 }
 
 // ---------- SCALE BAR + NORTH ARROW ----------
@@ -887,11 +1061,81 @@ function setupLocationSearch(viewer) {
   const list = document.getElementById('search-results');
   if (!input || !goBtn || !list) return;
 
+  // Local search over the WASA solutions and the recorded sites — matched by
+  // category name/letter, site activity, or enumerator. Returns clickable
+  // actions: fly to a category's sites, or to a single recorded site.
+  function localMatches(ql) {
+    const byLetter = {};
+    interventions.forEach((iv, i) => { (byLetter[iv.icon] = byLetter[iv.icon] || []).push(i); });
+    const out = [];
+    SOLUTIONS.forEach((sol) => {
+      const sites = byLetter[sol.letter] || [];
+      if (!sites.length) return;                          // nothing to fly to
+      if ((sol.letter + ' ' + sol.name).toLowerCase().includes(ql)) {
+        out.push({
+          title: sol.letter + ' — ' + sol.name,
+          sub: 'WASA solution · ' + sites.length + (sites.length === 1 ? ' site' : ' sites'),
+          run: () => { if (window.__focusCategory) window.__focusCategory(sol.letter); },
+        });
+      }
+    });
+    interventions.forEach((iv, i) => {
+      if ((iv.title + ' ' + iv.category + ' ' + iv.enumerator).toLowerCase().includes(ql)) {
+        out.push({
+          title: iv.title,
+          sub: iv.icon + ' · ' + iv.category + ' · ' + iv.enumerator,
+          run: () => { if (window.__focusIntervention) window.__focusIntervention(i); },
+        });
+      }
+    });
+    return out;
+  }
+
+  function addGroup(text) {
+    const li = document.createElement('li');
+    li.className = 'search-group';
+    li.textContent = text;
+    list.appendChild(li);
+  }
+  function addResult(title, sub, onClick) {
+    const li = document.createElement('li');
+    li.className = 'search-wasa';
+    const t = document.createElement('span');
+    t.className = 'search-title';
+    t.textContent = title;
+    li.appendChild(t);
+    if (sub) {
+      const s = document.createElement('span');
+      s.className = 'search-sub';
+      s.textContent = sub;
+      li.appendChild(s);
+    }
+    li.addEventListener('click', onClick);
+    list.appendChild(li);
+  }
+
   async function doSearch(q) {
     q = (q || '').trim();
     if (!q) return;
-    list.innerHTML = '<li class="search-empty">Searching…</li>';
+    const ql = q.toLowerCase();
+    list.innerHTML = '';
     list.hidden = false;
+
+    // 1) WASA solutions & recorded sites — local, instant.
+    const locals = localMatches(ql);
+    if (locals.length) {
+      addGroup('WASA solutions & sites');
+      locals.slice(0, 8).forEach((m) => {
+        addResult(m.title, m.sub, () => { m.run(); list.hidden = true; input.value = m.title; });
+      });
+    }
+
+    // 2) Places — OpenStreetMap / Nominatim.
+    addGroup('Places');
+    const loading = document.createElement('li');
+    loading.className = 'search-empty';
+    loading.textContent = 'Searching places…';
+    list.appendChild(loading);
     try {
       const url = 'https://nominatim.openstreetmap.org/search'
         + '?q=' + encodeURIComponent(q)
@@ -899,12 +1143,15 @@ function setupLocationSearch(viewer) {
       const resp = await fetch(url, { headers: { 'Accept': 'application/json' } });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
-      list.innerHTML = '';
+      loading.remove();
       if (!data || !data.length) {
-        list.innerHTML = '<li class="search-empty">No results</li>';
+        const li = document.createElement('li');
+        li.className = 'search-empty';
+        li.textContent = locals.length ? 'No matching places' : 'No results';
+        list.appendChild(li);
         return;
       }
-      data.forEach(r => {
+      data.forEach((r) => {
         const li = document.createElement('li');
         li.textContent = r.display_name;
         li.addEventListener('click', () => {
@@ -915,7 +1162,7 @@ function setupLocationSearch(viewer) {
         list.appendChild(li);
       });
     } catch (e) {
-      list.innerHTML = '<li class="search-empty">Search failed: ' + escapeHtml(e.message) + '</li>';
+      loading.textContent = 'Place search failed: ' + e.message;
     }
   }
 
@@ -936,6 +1183,71 @@ function setupLocationSearch(viewer) {
   document.addEventListener('click', (e) => {
     if (!document.getElementById('search-box').contains(e.target)) list.hidden = true;
   });
+}
+
+// ---------- PHOTO LIGHTBOX ----------
+// The site photos live inside the Cesium InfoBox, which renders into a
+// same-origin sandboxed iframe. Inline on* handlers are stripped there, so we
+// delegate clicks on the photo links from the PARENT document and open a
+// full-screen overlay on this page (with prev/next) instead of a new tab.
+// If the iframe is ever unreachable, the links keep their target="_blank".
+function setupPhotoLightbox(viewer) {
+  const box = document.getElementById('photo-lightbox');
+  const img = document.getElementById('lightbox-img');
+  const counter = document.getElementById('lightbox-counter');
+  if (!box || !img) return;
+
+  let photos = [];
+  let idx = 0;
+  function render() {
+    img.src = photos[idx];
+    if (counter) counter.textContent = photos.length > 1 ? (idx + 1) + ' / ' + photos.length : '';
+  }
+  function open(list, start) {
+    photos = (list || []).filter(Boolean);
+    if (!photos.length) return;
+    idx = Math.min(Math.max(start || 0, 0), photos.length - 1);
+    render();
+    box.hidden = false;
+  }
+  function close() { box.hidden = true; img.removeAttribute('src'); }
+  function step(d) { if (photos.length) { idx = (idx + d + photos.length) % photos.length; render(); } }
+
+  document.getElementById('lightbox-close').addEventListener('click', close);
+  document.getElementById('lightbox-prev').addEventListener('click', (e) => { e.stopPropagation(); step(-1); });
+  document.getElementById('lightbox-next').addEventListener('click', (e) => { e.stopPropagation(); step(1); });
+  // Click the dark backdrop (but not the image/buttons) to close.
+  box.addEventListener('click', (e) => { if (e.target === box) close(); });
+  document.addEventListener('keydown', (e) => {
+    if (box.hidden) return;
+    if (e.key === 'Escape') close();
+    else if (e.key === 'ArrowLeft') step(-1);
+    else if (e.key === 'ArrowRight') step(1);
+  });
+
+  // Delegate photo clicks inside the InfoBox iframe. Re-run on every selection
+  // change in case Cesium rebuilds the iframe document.
+  const frame = viewer.infoBox && viewer.infoBox.frame;
+  if (!frame) return;
+  function isPhotoHref(a) {
+    return a && (a.getAttribute('href') || '').indexOf('photos/') !== -1;
+  }
+  function attach() {
+    let doc;
+    try { doc = frame.contentDocument; } catch (e) { return; }   // cross-origin: keep _blank
+    if (!doc || doc.__wasaPhotoBound) return;
+    doc.__wasaPhotoBound = true;
+    doc.addEventListener('click', (e) => {
+      const a = e.target && e.target.closest && e.target.closest('a');
+      if (!isPhotoHref(a)) return;
+      e.preventDefault();
+      const links = Array.prototype.slice.call(doc.querySelectorAll('a')).filter(isPhotoHref);
+      open(links.map((l) => l.getAttribute('href')), links.indexOf(a));
+    });
+  }
+  frame.addEventListener('load', attach);
+  attach();
+  viewer.selectedEntityChanged.addEventListener(() => setTimeout(attach, 0));
 }
 
 // ---------- LIVE CURSOR COORDINATES ----------

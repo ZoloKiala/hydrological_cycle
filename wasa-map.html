@@ -62,8 +62,6 @@
     body.walk-mode #map-panel,
     body.walk-mode #site-toggle,
     body.walk-mode #brand-bar,
-    body.walk-mode #site-badge,
-    body.walk-mode #token-notice,
     body.walk-mode #map-panel-show { display: none !important; }
     body.walk-mode .cesium-infoBox { display: none !important; }
     #walk-overlay { display: none; }
@@ -89,25 +87,6 @@
       z-index: 7; padding: 8px 16px; border-radius: 20px;
       background: rgba(7,28,41,0.88); color: #ffd54f; font-size: 13px;
       border: 1px solid rgba(255,213,79,0.4); backdrop-filter: blur(6px); }
-    #site-badge { position: fixed; bottom: 16px; left: 16px; z-index: 4;
-      max-width: 380px; padding: 10px 14px; border-radius: 10px;
-      background: rgba(7, 28, 41, 0.82); color: #cfe4f1;
-      font-size: 12px; line-height: 1.45; backdrop-filter: blur(6px); }
-    #site-badge strong { color: #fff; font-size: 13px; }
-    #site-badge em { color: #ffd54f; font-style: normal; }
-    /* Token notice lives in the bottom-left column ABOVE the site badge so
-       it never overlaps the InfoBox (which is in the top-left column). */
-    #token-notice { position: fixed; bottom: 110px; left: 16px; z-index: 4;
-      max-width: 360px; padding: 10px 14px 10px 14px; border-radius: 10px;
-      background: rgba(7, 28, 41, 0.92); color: #ffd54f;
-      font-size: 12px; line-height: 1.45;
-      border: 1px solid rgba(255, 213, 79, 0.4); display: none; }
-    #token-notice a { color: #4fc3f7; }
-    #token-notice-close { position: absolute; top: 4px; right: 6px;
-      width: 22px; height: 22px; border-radius: 50%; border: 0;
-      background: transparent; color: #ffd54f; cursor: pointer;
-      font-size: 16px; line-height: 1; padding: 0; opacity: 0.8; }
-    #token-notice-close:hover { opacity: 1; background: rgba(255,213,79,0.18); }
     #map-panel { position: fixed; top: 80px; right: 16px; bottom: 16px; width: 360px;
       z-index: 3; padding: 16px; overflow-y: auto;
       background: rgba(7, 28, 41, 0.88); color: #e6f0f7;
@@ -141,10 +120,12 @@
     .map-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
     .map-icon { display: inline-flex; align-items: center; justify-content: center;
       width: 28px; height: 28px; border-radius: 50%; font-weight: 700; font-size: 14px;
-      color: #0a1820; background: #ffd54f; }
+      color: #0a1820; background: #ffd54f; flex-shrink: 0; }
     .map-card h3 { margin: 0; font-size: 14px; color: #fff; }
     .map-card p { margin: 6px 0; font-size: 12.5px; line-height: 1.45; color: #cfe4f1; }
-    .map-impact { font-size: 11.5px; color: #ffd54f; margin: 4px 0 8px 0; }
+    .map-impact { font-size: 11.5px; color: #ffd54f; margin: 4px 0 8px 0; font-weight: 600; }
+    .map-card.no-sites { opacity: 0.7; }
+    .map-no-sites { font-size: 11px; color: #9bc7e2; font-style: italic; margin: 4px 0 6px; }
     .map-focus-btn { display: inline-block; padding: 6px 12px; border-radius: 6px;
       border: 1px solid #4fc3f7; background: rgba(79, 195, 247, 0.16);
       color: #fff; cursor: pointer; font-size: 12px; margin-right: 6px; }
@@ -324,6 +305,34 @@
     #search-results li:last-child { border-bottom: none; }
     #search-results li:hover { background: rgba(79,195,247,0.15); color: #fff; }
     #search-results li.search-empty { color: #9bc7e2; cursor: default; font-style: italic; }
+    #search-results li.search-group { color: #ffd54f; cursor: default; font-size: 10.5px;
+      font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+      padding: 6px 14px 3px; border-bottom: none; }
+    #search-results li.search-group:hover { background: none; color: #ffd54f; }
+    #search-results li.search-wasa .search-title { display: block; color: #fff; font-weight: 600; }
+    #search-results li.search-wasa .search-sub { display: block; color: #9bc7e2; font-size: 11px; margin-top: 1px; }
+    #search-results li.search-wasa:hover .search-sub { color: #cfe4f1; }
+    /* ---------- PHOTO LIGHTBOX ---------- */
+    #photo-lightbox { position: fixed; inset: 0; z-index: 50;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(3, 12, 18, 0.92); backdrop-filter: blur(4px); }
+    #photo-lightbox[hidden] { display: none; }
+    #lightbox-img { max-width: 92vw; max-height: 88vh; border-radius: 8px;
+      box-shadow: 0 12px 48px rgba(0,0,0,0.6); object-fit: contain; }
+    #photo-lightbox button { position: fixed; border: 0; cursor: pointer;
+      color: #fff; background: rgba(7,28,41,0.7); border: 1px solid rgba(255,255,255,0.25);
+      backdrop-filter: blur(4px); line-height: 1; }
+    #photo-lightbox button:hover { background: rgba(79,195,247,0.4); }
+    #lightbox-close { top: 18px; right: 18px; width: 42px; height: 42px;
+      border-radius: 50%; font-size: 24px; }
+    #lightbox-prev, #lightbox-next { top: 50%; transform: translateY(-50%);
+      width: 48px; height: 64px; border-radius: 10px; font-size: 30px; }
+    #lightbox-prev { left: 18px; }
+    #lightbox-next { right: 18px; }
+    #lightbox-counter { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      color: #cfe4f1; font-size: 13px; padding: 4px 12px; border-radius: 14px;
+      background: rgba(7,28,41,0.7); border: 1px solid rgba(255,255,255,0.18); }
+    #lightbox-counter:empty { display: none; }
     @media (max-width: 720px) {
       #search-box { top: 70px; }
       #map-legend { bottom: 75px; max-width: 200px; padding: 6px 10px; font-size: 11px; }
@@ -390,9 +399,6 @@
     #mly-static { position: absolute; inset: 0; width: 100%; height: 100%;
       object-fit: contain; background: #000; }
     #mly-static[hidden] { display: none; }
-    /* The token notice also lives at top-left; nudge it lower when the
-       InfoBox is visible so the two don't stack. */
-    .cesium-infoBox-visible ~ #token-notice { top: auto !important; bottom: 100px !important; }
     /* On narrow viewports the side panel becomes a bottom sheet — give the
        InfoBox back the full width on the left. */
     @media (max-width: 720px) {
@@ -520,16 +526,15 @@
 
   <!-- Location search (OpenStreetMap Nominatim — free, no API key). -->
   <div id="search-box">
-    <input type="search" id="search-input" placeholder="Search a place… (e.g., Lilongwe)" autocomplete="off" />
+    <input type="search" id="search-input" placeholder="Search a WASA solution, site, or place…" autocomplete="off" />
     <button id="search-go" type="button">Go</button>
     <ul id="search-results" hidden></ul>
   </div>
 
   <!-- Map legend, floated on the map (used to live inside the WASA panel). -->
   <div id="map-legend">
-    <div class="row"><span class="swatch" style="background:#ffd54f"></span>WASA intervention</div>
-    <div class="row"><span class="swatch" style="background:#4fc3f7"></span>Stream / river</div>
-    <div class="row"><span class="swatch" style="background:rgba(255,213,79,0.18); border:1px dashed #ffd54f"></span>Watershed boundary</div>
+    <div class="row"><span class="swatch" style="background:#ffd54f"></span>WASA intervention site</div>
+    <div class="row" style="color:#9bc7e2">Marker letter = category (A/B/D/F, O = Other)</div>
   </div>
 
   <!-- Scale bar (updated by cesium-scene.js as the camera moves). -->
@@ -603,26 +608,18 @@
     </div>
   </div>
 
-  <div id="token-notice">
-    <button id="token-notice-close" type="button" aria-label="Dismiss"
-            onclick="document.getElementById('token-notice').style.display='none'">x</button>
-    <strong>Running without a Cesium Ion token.</strong>
-    Globe uses Esri satellite imagery on a flat ellipsoid (no real terrain elevation).
-    For real hills, get a free token at
-    <a href="https://ion.cesium.com/signup" target="_blank" rel="noopener">ion.cesium.com</a>
-    and reload with <code>?token=YOUR_TOKEN</code>.
-  </div>
-
   <button id="map-panel-show" type="button" title="Show the WASA solutions panel">WASA Solutions</button>
 
   <aside id="map-panel">
     <button id="map-panel-close" type="button" aria-label="Hide WASA panel" title="Hide panel">x</button>
     <span class="eyebrow">How WASA improves the water cycle</span>
-    <h2 id="watershed-name">Mudi River pilot watershed</h2>
+    <h2 id="watershed-name">The eight WASA solutions</h2>
     <p class="intro">
-      A <em>fictional</em> 3&nbsp;km&times;2&nbsp;km demonstration watershed around Blantyre,
-      southern Malawi. Each marker is one of the eight WASA interventions on a real 3D globe.
-      Click <strong>Street&nbsp;View</strong> on any card to drop into real Mapillary photos at that spot.
+      The eight Water&nbsp;and&nbsp;Soil&nbsp;Accelerator interventions and how each improves the
+      water cycle. The <strong>map markers are real sites</strong> recorded in the field across
+      southern Malawi &mdash; click a marker (or a card's <strong>Fly&nbsp;to&nbsp;site</strong>)
+      for its photos and details. <strong>Street&nbsp;View</strong> opens nearby Mapillary photos
+      where available.
     </p>
     <a id="panel-3d-link" href="index.html"
        title="Compare this satellite view with the stylised Three.js scene">
@@ -642,11 +639,14 @@
   <!-- Cam-controls + north arrow removed — Cesium's native mouse/touch
        controls (drag = pan, right-drag = tilt, scroll = zoom) cover this. -->
 
-
-  <div id="site-badge">
-    <strong>Demo location</strong> · centred on <em>Blantyre, Malawi</em>
-    (-15.786,&nbsp;35.006) so Mapillary Street View has crowdsourced photo coverage at every marker.
-    The 8 intervention sites are fictional, placed for visualisation.
+  <!-- Full-screen photo lightbox. Opened from the InfoBox photo thumbnails
+       (see setupPhotoLightbox in cesium-scene.js). -->
+  <div id="photo-lightbox" hidden>
+    <button id="lightbox-close" type="button" aria-label="Close (Esc)">&times;</button>
+    <button id="lightbox-prev" type="button" aria-label="Previous">&#8249;</button>
+    <img id="lightbox-img" alt="Site photo" />
+    <button id="lightbox-next" type="button" aria-label="Next">&#8250;</button>
+    <div id="lightbox-counter"></div>
   </div>
 
   <script>
