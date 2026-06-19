@@ -27,8 +27,8 @@
     #cesiumContainer { position: fixed; inset: 0; }
     /* Cesium prints a small attribution bar / credit container in the
        bottom-left; nudge it so it doesn't sit under the site badge. */
-    .cesium-viewer-bottom { left: 16px !important; bottom: 100px !important; }
-    #brand-bar { z-index: 4; }
+    .cesium-viewer-bottom { left: 16px !important; bottom: 6px !important; }
+    #brand-bar, #site-toggle, #panel-3d-link { display: none !important; }   /* navbar + 3D-scene links hidden in the SLWM embed */
     #site-toggle { position: fixed; top: 14px; right: 16px; z-index: 5;
       padding: 10px 16px; border-radius: 24px; border: 1px solid rgba(79,195,247,0.55);
       background: rgba(79, 195, 247, 0.18); color: #fff; cursor: pointer;
@@ -47,7 +47,7 @@
     /* On-screen camera nav cluster removed — Cesium's native mouse/touch
        controls cover the same functionality. The north arrow stays as a
        lightweight orientation cue. */
-    #north-arrow { position: fixed; top: 80px; left: 16px; z-index: 4;
+    #north-arrow { position: fixed; top: 14px; left: 16px; z-index: 4;
       width: 40px; height: 40px; border-radius: 50%;
       background: rgba(7,28,41,0.78); border: 1px solid rgba(255,255,255,0.18);
       cursor: pointer; display: flex; align-items: center; justify-content: center;
@@ -87,7 +87,7 @@
       z-index: 7; padding: 8px 16px; border-radius: 20px;
       background: rgba(7,28,41,0.88); color: #ffd54f; font-size: 13px;
       border: 1px solid rgba(255,213,79,0.4); backdrop-filter: blur(6px); }
-    #map-panel { position: fixed; top: 80px; right: 16px; bottom: 16px; width: 360px;
+    #map-panel { position: fixed; top: 14px; right: 16px; bottom: 16px; width: 360px;
       z-index: 3; padding: 16px; overflow-y: auto;
       background: rgba(7, 28, 41, 0.88); color: #e6f0f7;
       border: 1px solid rgba(255,255,255,0.12); border-radius: 14px;
@@ -101,7 +101,7 @@
       font-size: 16px; line-height: 1; padding: 0; }
     #map-panel-close:hover { background: rgba(255,255,255,0.18); }
     /* Floating "Show panel" toggle that appears when the panel is hidden. */
-    #map-panel-show { position: fixed; top: 80px; right: 16px; z-index: 4;
+    #map-panel-show { position: fixed; top: 14px; right: 16px; z-index: 4;
       padding: 10px 14px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.4);
       background: rgba(7, 28, 41, 0.88); color: #fff; cursor: pointer;
       font-size: 13px; font-weight: 600; letter-spacing: 0.02em;
@@ -277,7 +277,7 @@
       #form-card { padding: 18px; }
     }
     /* ---------- LOCATION SEARCH BAR ---------- */
-    #search-box { position: fixed; top: 80px; left: 50%;
+    #search-box { position: fixed; top: 14px; left: 50%;
       transform: translateX(-50%); z-index: 5;
       width: min(420px, calc(100vw - 32px));
       display: flex; gap: 6px; align-items: stretch; }
@@ -425,7 +425,8 @@
     </div>
   </header>
 
-  <button id="form-open" type="button" title="Add a WASA intervention record">+ Add intervention</button>
+  <!-- "+ Add intervention" button removed — contribution is handled via the
+       SLWM dashboard's Contribute menu (KoBoToolbox form). -->>
 
   <!-- Add-WASA-intervention webform (in-page; no backend, no upload). On submit
        the form bundles the captured GPS + photo + free-text fields into a
@@ -688,7 +689,8 @@
       function openForm() { overlay.hidden = false; setStatus(''); }
       function closeForm() { overlay.hidden = true; }
 
-      document.getElementById('form-open').addEventListener('click', openForm);
+      var _formOpenBtn = document.getElementById('form-open');
+      if (_formOpenBtn) _formOpenBtn.addEventListener('click', openForm);
       document.getElementById('form-close').addEventListener('click', closeForm);
       overlay.addEventListener('click', (e) => { if (e.target === overlay) closeForm(); });
 

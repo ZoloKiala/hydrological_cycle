@@ -366,7 +366,7 @@ const SOLUTIONS = [
       },
       label: {
         text: iv.icon,
-        font: 'bold 14px "Segoe UI", sans-serif',
+        font: 'bold 18px "Segoe UI", Arial, sans-serif',
         fillColor: Cesium.Color.fromCssColorString('#0a1820'),
         style: Cesium.LabelStyle.FILL,
         pixelOffset: new Cesium.Cartesian2(0, 0),
@@ -933,15 +933,6 @@ function buildCard(sol, siteIdx, siteCount) {
       if (window.__focusCategory) window.__focusCategory(sol.letter);
     });
 
-    const walkBtn = document.createElement('button');
-    walkBtn.className = 'map-walk-btn';
-    walkBtn.type = 'button';
-    walkBtn.textContent = 'Walk here';
-    walkBtn.title = 'Drop the camera to ground level and walk around (WASD / drag to look / Esc to exit)';
-    walkBtn.addEventListener('click', () => {
-      if (window.__walkAt) window.__walkAt(siteIdx);
-    });
-
     const streetBtn = document.createElement('button');
     streetBtn.className = 'map-street-btn';
     streetBtn.type = 'button';
@@ -951,7 +942,7 @@ function buildCard(sol, siteIdx, siteCount) {
       if (window.__streetView) window.__streetView(siteIdx);
     });
 
-    card.append(btn, walkBtn, streetBtn);
+    card.append(btn, streetBtn);
   } else {
     const note = document.createElement('div');
     note.className = 'map-no-sites';
