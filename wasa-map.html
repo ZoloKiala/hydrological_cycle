@@ -175,7 +175,7 @@
     body.panel-hidden #map-legend { right: 16px; }
     #map-legend .row { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
     #map-legend .swatch { width: 11px; height: 11px; border-radius: 2px; flex-shrink: 0; }
-    #zoom-controls { position: fixed; left: 16px; bottom: 16px; z-index: 5;
+    #zoom-controls { position: fixed; left: 16px; top: 50%; transform: translateY(-50%); z-index: 5;
       display: flex; flex-direction: column; border-radius: 8px; overflow: hidden;
       border: 1px solid rgba(255,255,255,0.16); box-shadow: 0 4px 14px rgba(7,28,41,0.4); }
     #zoom-controls button { width: 40px; height: 40px; border: 0; cursor: pointer;
@@ -344,6 +344,7 @@
     @media (max-width: 720px) {
       #search-box { top: 70px; }
       #map-legend { bottom: 75px; max-width: 200px; padding: 6px 10px; font-size: 11px; }
+      #zoom-controls button { width: 36px; height: 36px; font-size: 20px; }
     }
     /* ---------- MAPILLARY STREET VIEW MODAL ---------- */
     #mly-overlay { position: fixed; inset: 0; z-index: 50; display: flex;
