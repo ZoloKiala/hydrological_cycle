@@ -344,6 +344,16 @@ const SOLUTIONS = [
   viewer.scene.fog.enabled = true;
   viewer.scene.skyAtmosphere.show = true;
 
+  // Zoom in/out buttons (wasa-map.html) wired to the camera. The step scales
+  // with the current altitude so it feels consistent at any zoom level.
+  (function () {
+    const zin = document.getElementById('zoom-in');
+    const zout = document.getElementById('zoom-out');
+    const step = () => Math.max(500, viewer.camera.positionCartographic.height * 0.35);
+    if (zin) zin.addEventListener('click', () => viewer.camera.zoomIn(step()));
+    if (zout) zout.addEventListener('click', () => viewer.camera.zoomOut(step()));
+  })();
+
   // The fictional watershed polygon and river polyline were removed: the real
   // inventory points span a large region of southern Malawi, so a single small
   // demo catchment no longer applies.

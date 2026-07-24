@@ -175,6 +175,14 @@
     body.panel-hidden #map-legend { right: 16px; }
     #map-legend .row { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
     #map-legend .swatch { width: 11px; height: 11px; border-radius: 2px; flex-shrink: 0; }
+    #zoom-controls { position: fixed; left: 16px; bottom: 16px; z-index: 5;
+      display: flex; flex-direction: column; border-radius: 8px; overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.16); box-shadow: 0 4px 14px rgba(7,28,41,0.4); }
+    #zoom-controls button { width: 40px; height: 40px; border: 0; cursor: pointer;
+      background: rgba(7,28,41,0.82); color: #e8f4fb; font-size: 22px; font-weight: 700;
+      line-height: 1; display: grid; place-items: center; backdrop-filter: blur(4px); }
+    #zoom-controls button:first-child { border-bottom: 1px solid rgba(255,255,255,0.16); }
+    #zoom-controls button:hover { background: rgba(29,123,95,0.92); }
     /* ---------- ADD-INTERVENTION WEBFORM ---------- */
     #form-open { position: fixed; top: 14px; right: 200px; z-index: 5;
       padding: 10px 16px; border-radius: 22px;
@@ -542,6 +550,12 @@
   <div id="scale-bar">
     <span id="scale-bar-label">--</span>
     <span id="scale-bar-bar" style="width:0"></span>
+  </div>
+
+  <!-- Zoom controls (wired to the Cesium camera in cesium-scene.js). -->
+  <div id="zoom-controls">
+    <button id="zoom-in" type="button" aria-label="Zoom in" title="Zoom in">+</button>
+    <button id="zoom-out" type="button" aria-label="Zoom out" title="Zoom out">&minus;</button>
   </div>
 
   <!-- North arrow — rotates with the camera heading; click to face north. -->
