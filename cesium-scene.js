@@ -238,7 +238,7 @@ const interventions = [
     enumerator: "Elinat Mtupanyama",
     comments: "",
     photos: [],
-    pos: [35.482793, -15.77322],
+    pos: [-15.77322, 35.482793],
     range: 500, heading: 0, pitch: -40,
   },
   {
@@ -260,7 +260,7 @@ const interventions = [
     enumerator: "Elinat Mtupanyama",
     comments: "",
     photos: [],
-    pos: [13.254308, 34.301524],
+    pos: [-13.254308, 34.301524],
     range: 500, heading: 0, pitch: -40,
   },
   {
