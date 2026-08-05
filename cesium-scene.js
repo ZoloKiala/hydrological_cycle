@@ -368,7 +368,7 @@ const SOLUTIONS = [
       position: Cesium.Cartesian3.fromDegrees(lng, lat),
       point: {
         pixelSize: 26,
-        color: Cesium.Color.fromCssColorString('#ffd54f'),
+        color: Cesium.Color.fromCssColorString('#DD9103'),
         outlineColor: Cesium.Color.fromCssColorString('#0a1820'),
         outlineWidth: 2,
         heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
@@ -401,7 +401,7 @@ const SOLUTIONS = [
   };
   const MARKER_SELECTED = {
     pixelSize: 36,
-    outlineColor: Cesium.Color.fromCssColorString('#4fc3f7'),
+    outlineColor: Cesium.Color.fromCssColorString('#46BBD4'),
     outlineWidth: 4,
   };
   function highlightSites(idxSet) {
@@ -716,7 +716,7 @@ const SOLUTIONS = [
     try { userToken = localStorage.getItem(MLY_TOKEN_KEY) || ''; } catch (e) { /* ignore */ }
     if (userToken) {
       stateEl.textContent = 'saved (your browser)';
-      stateEl.style.color = '#81c784';
+      stateEl.style.color = '#22AD7A';
       clearEl.style.display = '';
     } else if (BUILD_TIME_TOKEN) {
       stateEl.textContent = 'using site default';
@@ -980,7 +980,7 @@ function buildDescription(iv) {
         'border:1px solid rgba(255,255,255,0.18)"></a>'
   ).join('');
   return '<div style="font-family:Segoe UI,sans-serif;font-size:13px;line-height:1.5">' +
-    '<div style="color:#ffd54f;font-weight:600;font-size:13px;margin-bottom:4px">' +
+    '<div style="color:#DD9103;font-weight:600;font-size:13px;margin-bottom:4px">' +
       escapeHtml(iv.title) + '</div>' +
     '<p>' + escapeHtml(iv.text) + '</p>' +
     (iv.comments
