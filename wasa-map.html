@@ -55,7 +55,7 @@
     #north-arrow svg { width: 32px; height: 32px; transition: transform 0.18s ease-out; }
     #north-arrow:hover { background: rgba(7,28,41,0.95); }
     @media (max-width: 720px) {
-      #north-arrow { top: 70px; left: 8px; }
+      #north-arrow { top: 12px; left: 8px; }
     }
     /* ---------- WALK MODE (first-person) ---------- */
     /* Hide other chrome so the FPS view is uncluttered. */
@@ -166,13 +166,16 @@
     @media (max-width: 720px) {
       #cursor-coords { display: none; }   /* no hover on touch — hide on small screens */
     }
-    /* ---------- FLOATING LEGEND (bottom-right, where cam-controls used to be) ---------- */
-    #map-legend { position: fixed; bottom: 16px; right: 392px; z-index: 4;
+    /* ---------- FLOATING LEGEND ---------- */
+    /* Bottom-LEFT, lifted above the Cesium credit line. The lat/lng readout and
+       scale bar are centre-bottom and the panel is on the right, so anchoring the
+       legend to the left keeps it clear of both at every screen width. */
+    #map-legend { position: fixed; bottom: 34px; left: 16px; right: auto; z-index: 4;
       padding: 8px 12px; max-width: 240px;
       background: rgba(7,28,41,0.78); color: #cfe4f1;
       border: 1px solid rgba(255,255,255,0.14); border-radius: 8px;
       font-size: 11.5px; backdrop-filter: blur(4px); }
-    body.panel-hidden #map-legend { right: 16px; }
+    body.panel-hidden #map-legend { left: 16px; right: auto; }
     #map-legend .row { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
     #map-legend .swatch { width: 11px; height: 11px; border-radius: 2px; flex-shrink: 0; }
     #zoom-controls { position: fixed; left: 16px; top: 50%; transform: translateY(-50%); z-index: 5;
@@ -285,10 +288,14 @@
       #form-card { padding: 18px; }
     }
     /* ---------- LOCATION SEARCH BAR ---------- */
-    #search-box { position: fixed; top: 14px; left: 50%;
-      transform: translateX(-50%); z-index: 5;
-      width: min(420px, calc(100vw - 32px));
+    /* Anchored to the left region: starts clear of the compass (left) and never
+       runs past the 360px side panel on the right (right:392 = 360 + margins).
+       max-width keeps it a sensible size on wide screens; when the panel is
+       hidden it can use the full width. */
+    #search-box { position: fixed; top: 14px; left: 64px; right: 392px;
+      z-index: 5; width: auto; max-width: 420px;
       display: flex; gap: 6px; align-items: stretch; }
+    body.panel-hidden #search-box { right: 16px; }
     #search-input { flex: 1; padding: 9px 14px; border-radius: 22px;
       border: 1px solid rgba(255,255,255,0.22);
       background: rgba(7,28,41,0.85); color: #fff;
@@ -342,8 +349,19 @@
       background: rgba(7,28,41,0.7); border: 1px solid rgba(255,255,255,0.18); }
     #lightbox-counter:empty { display: none; }
     @media (max-width: 720px) {
-      #search-box { top: 70px; }
-      #map-legend { bottom: 75px; max-width: 200px; padding: 6px 10px; font-size: 11px; }
+      /* North-arrow shares this row at far-left (left:8, 40px wide) — anchor the
+         search box to start clear of it and fill to the right, instead of
+         centering (which rode over the arrow on narrow screens). */
+      #search-box { top: 12px; left: 56px; right: 12px; width: auto; max-width: none; }
+      /* "Show panel" moves to the bottom on mobile so it doesn't sit under the
+         now-top-aligned search box when the bottom sheet is dismissed. */
+      #map-panel-show { top: auto; bottom: 16px; right: 16px; }
+      /* The bottom sheet owns the lower half of the screen and the scale bar /
+         legend sit above it in z-order — so hide them while it's open and bring
+         them back (stacked clear of the scale bar) once the sheet is dismissed. */
+      #scale-bar, #map-legend { display: none; }
+      body.panel-hidden #scale-bar { display: block; }
+      body.panel-hidden #map-legend { display: block; bottom: 72px; max-width: 200px; padding: 6px 10px; font-size: 11px; }
       #zoom-controls button { width: 36px; height: 36px; font-size: 20px; }
     }
     /* ---------- MAPILLARY STREET VIEW MODAL ---------- */
