@@ -49,11 +49,12 @@
        lightweight orientation cue. */
     #north-arrow { position: fixed; top: 14px; right: 16px; z-index: 4;
       width: 40px; height: 40px; border-radius: 50%;
-      background: rgba(7,28,41,0.78); border: 1px solid rgba(255,255,255,0.18);
+      background: rgba(255,255,255,0.94); border: 1px solid #D8DCE0; color: #28537D;
       cursor: pointer; display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 14px rgba(40,83,125,0.2);
       backdrop-filter: blur(4px); padding: 0; }
     #north-arrow svg { width: 32px; height: 32px; transition: transform 0.18s ease-out; }
-    #north-arrow:hover { background: rgba(7,28,41,0.95); }
+    #north-arrow:hover { background: #eef3f8; }
     @media (max-width: 720px) {
       #north-arrow { top: 12px; left: 8px; right: auto; }
     }
@@ -148,11 +149,11 @@
     /* ---------- SCALE BAR ---------- */
     #scale-bar { position: fixed; bottom: 16px; left: 50%;
       transform: translateX(-50%); z-index: 4;
-      padding: 5px 10px; background: rgba(7,28,41,0.78);
-      color: #fff; font-size: 11px; border-radius: 6px;
-      border: 1px solid rgba(255,255,255,0.18); pointer-events: none;
+      padding: 5px 10px; background: rgba(255,255,255,0.92);
+      color: #1C2B3A; font-size: 11px; border-radius: 6px;
+      border: 1px solid #D8DCE0; pointer-events: none;
       backdrop-filter: blur(4px); text-align: center; }
-    #scale-bar-bar { display: block; height: 4px; background: #fff;
+    #scale-bar-bar { display: block; height: 4px; background: #28537D;
       border-radius: 1px; margin-top: 3px; transition: width 0.2s; }
     /* ---------- NORTH ARROW ---------- */
     /* (north-arrow CSS now lives next to the cam-cluster comment above) */
@@ -162,9 +163,9 @@
        placed side-by-side). */
     #cursor-coords { position: fixed; bottom: 48px; left: 50%;
       transform: translateX(-50%); z-index: 4;
-      padding: 4px 10px; background: rgba(7,28,41,0.78);
-      color: #cfe4f1; font-size: 11px; font-family: ui-monospace, Menlo, Consolas, monospace;
-      border-radius: 6px; border: 1px solid rgba(255,255,255,0.18);
+      padding: 4px 10px; background: rgba(255,255,255,0.92);
+      color: #1C2B3A; font-size: 11px; font-family: ui-monospace, Menlo, Consolas, monospace;
+      border-radius: 6px; border: 1px solid #D8DCE0;
       pointer-events: none; backdrop-filter: blur(4px); white-space: nowrap; }
     #cursor-coords[hidden] { display: none; }
     @media (max-width: 720px) {
@@ -176,20 +177,20 @@
        legend to the left keeps it clear of both at every screen width. */
     #map-legend { position: fixed; bottom: 34px; right: 16px; left: auto; z-index: 4;
       padding: 8px 12px; max-width: 240px;
-      background: rgba(7,28,41,0.78); color: #cfe4f1;
-      border: 1px solid rgba(255,255,255,0.14); border-radius: 8px;
+      background: rgba(255,255,255,0.94); color: #1C2B3A;
+      border: 1px solid #D8DCE0; border-radius: 8px; box-shadow: 0 4px 14px rgba(40,83,125,0.18);
       font-size: 11.5px; backdrop-filter: blur(4px); }
     body.panel-hidden #map-legend { right: 16px; left: auto; }
     #map-legend .row { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
     #map-legend .swatch { width: 11px; height: 11px; border-radius: 2px; flex-shrink: 0; }
     #zoom-controls { position: fixed; right: 16px; top: 50%; transform: translateY(-50%); z-index: 5;
       display: flex; flex-direction: column; border-radius: 8px; overflow: hidden;
-      border: 1px solid rgba(255,255,255,0.16); box-shadow: 0 4px 14px rgba(7,28,41,0.4); }
+      border: 1px solid #D8DCE0; box-shadow: 0 4px 14px rgba(40,83,125,0.2); }
     #zoom-controls button { width: 40px; height: 40px; border: 0; cursor: pointer;
-      background: rgba(7,28,41,0.82); color: #e8f4fb; font-size: 22px; font-weight: 700;
+      background: rgba(255,255,255,0.94); color: #28537D; font-size: 22px; font-weight: 700;
       line-height: 1; display: grid; place-items: center; backdrop-filter: blur(4px); }
-    #zoom-controls button:first-child { border-bottom: 1px solid rgba(255,255,255,0.16); }
-    #zoom-controls button:hover { background: rgba(29,123,95,0.92); }
+    #zoom-controls button:first-child { border-bottom: 1px solid #E8E7E7; }
+    #zoom-controls button:hover { background: #eef3f8; }
     /* ---------- ADD-INTERVENTION WEBFORM ---------- */
     #form-open { position: fixed; top: 14px; right: 200px; z-index: 5;
       padding: 10px 16px; border-radius: 22px;
@@ -409,8 +410,8 @@
        give it a fixed width that fits next to (not under) the cards panel,
        and restyle for the dark theme. */
     .cesium-infoBox {
-      left: 16px !important;
-      right: auto !important;
+      right: 16px !important;
+      left: auto !important;
       top: 96px !important;
       width: 340px !important;
       max-width: calc(100vw - 392px) !important;    /* never reach the right panel */
