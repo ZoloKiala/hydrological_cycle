@@ -89,58 +89,62 @@
       border: 1px solid rgba(221,145,3,0.4); backdrop-filter: blur(6px); }
     #map-panel { position: fixed; top: 14px; right: 16px; bottom: 16px; width: 360px;
       z-index: 3; padding: 16px; overflow-y: auto;
-      background: rgba(7, 28, 41, 0.88); color: #e6f0f7;
-      border: 1px solid rgba(255,255,255,0.12); border-radius: 14px;
+      background: rgba(255, 255, 255, 0.96); color: #1C2B3A;
+      border: 1px solid #D8DCE0; border-radius: 14px;
       backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-      box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+      box-shadow: 0 12px 40px rgba(40,83,125,0.22);
       transition: transform 0.25s ease, opacity 0.25s ease; }
     #map-panel.panel-hidden { transform: translateX(calc(100% + 32px)); opacity: 0; pointer-events: none; }
     #map-panel-close { position: absolute; top: 10px; right: 10px;
       width: 26px; height: 26px; border-radius: 50%; border: 0;
-      background: rgba(255,255,255,0.08); color: #fff; cursor: pointer;
+      background: rgba(28,43,58,0.06); color: #5B6B7A; cursor: pointer;
       font-size: 16px; line-height: 1; padding: 0; }
-    #map-panel-close:hover { background: rgba(255,255,255,0.18); }
+    #map-panel-close:hover { background: rgba(28,43,58,0.12); }
     /* Floating "Show panel" toggle that appears when the panel is hidden. */
     #map-panel-show { position: fixed; top: 14px; right: 16px; z-index: 4;
-      padding: 10px 14px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.4);
-      background: rgba(7, 28, 41, 0.88); color: #fff; cursor: pointer;
+      padding: 10px 14px; border-radius: 24px; border: 1px solid #D8DCE0;
+      background: rgba(255, 255, 255, 0.96); color: #28537D; cursor: pointer;
       font-size: 13px; font-weight: 600; letter-spacing: 0.02em;
+      box-shadow: 0 4px 16px rgba(40,83,125,0.25);
       backdrop-filter: blur(6px); display: none; }
-    #map-panel-show:hover { background: rgba(7, 28, 41, 0.96); }
+    #map-panel-show:hover { background: #eef3f8; }
     body.panel-hidden #map-panel-show { display: inline-block; }
     /* When the panel is hidden, the InfoBox can use the full viewport width. */
     body.panel-hidden .cesium-infoBox { max-width: calc(100vw - 32px) !important; }
-    #map-panel h2 { margin: 0 0 4px 0; font-size: 18px; padding-right: 28px; }
-    #map-panel .eyebrow { display: block; font-size: 11px; color: #9bc7e2;
-      letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 6px; }
-    #map-panel .intro { font-size: 13px; line-height: 1.5; color: #cfe4f1;
+    #map-panel h2 { margin: 0 0 4px 0; font-size: 18px; padding-right: 28px; color: #28537D; }
+    #map-panel .eyebrow { display: block; font-size: 11px; color: #5088C6;
+      letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 6px; font-weight: 700; }
+    #map-panel .intro { font-size: 13px; line-height: 1.5; color: #5B6B7A;
       margin: 4px 0 14px 0; }
-    .map-card { border: 1px solid rgba(255,255,255,0.1); border-radius: 10px;
-      padding: 10px 12px; margin-bottom: 10px; background: rgba(255,255,255,0.04); }
+    .map-card { border: 1px solid #E8E7E7; border-radius: 10px;
+      padding: 10px 12px; margin-bottom: 10px; background: #F7F8FA; }
     .map-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
     .map-icon { display: inline-flex; align-items: center; justify-content: center;
       width: 28px; height: 28px; border-radius: 50%; font-weight: 700; font-size: 14px;
-      color: #0a1820; background: #DD9103; flex-shrink: 0; }
-    .map-card h3 { margin: 0; font-size: 14px; color: #fff; }
-    .map-card p { margin: 6px 0; font-size: 12.5px; line-height: 1.45; color: #cfe4f1; }
-    .map-impact { font-size: 11.5px; color: #DD9103; margin: 4px 0 8px 0; font-weight: 600; }
+      color: #fff; background: #DD9103; flex-shrink: 0; }
+    .map-card h3 { margin: 0; font-size: 14px; color: #1C2B3A; }
+    .map-card p { margin: 6px 0; font-size: 12.5px; line-height: 1.45; color: #5B6B7A; }
+    .map-impact { font-size: 11.5px; color: #B5730A; margin: 4px 0 8px 0; font-weight: 700; }
     .map-card.no-sites { opacity: 0.7; }
-    .map-no-sites { font-size: 11px; color: #9bc7e2; font-style: italic; margin: 4px 0 6px; }
+    .map-no-sites { font-size: 11px; color: #93A1AE; font-style: italic; margin: 4px 0 6px; }
+    /* Fly to site = primary (filled navy) */
     .map-focus-btn { display: inline-block; padding: 6px 12px; border-radius: 6px;
-      border: 1px solid #46BBD4; background: rgba(70, 187, 212, 0.16);
-      color: #fff; cursor: pointer; font-size: 12px; margin-right: 6px; }
-    .map-focus-btn:hover { background: rgba(70, 187, 212, 0.28); }
+      border: 1px solid #28537D; background: #28537D;
+      color: #fff; cursor: pointer; font-size: 12px; font-weight: 600; margin-right: 6px; }
+    .map-focus-btn:hover { background: #1F4266; border-color: #1F4266; }
+    /* Walk = tertiary (outline teal) */
     .map-walk-btn { display: inline-block; padding: 6px 12px; border-radius: 6px;
-      border: 1px solid #ffb74d; background: rgba(255, 183, 77, 0.14);
-      color: #fff; cursor: pointer; font-size: 12px; margin-right: 6px; }
-    .map-walk-btn:hover { background: rgba(255, 183, 77, 0.26); }
+      border: 1px solid #0297A6; background: #fff;
+      color: #0297A6; cursor: pointer; font-size: 12px; font-weight: 600; margin-right: 6px; }
+    .map-walk-btn:hover { background: rgba(2, 151, 166, 0.10); }
+    /* Street View = secondary (outline navy) */
     .map-street-btn { display: inline-block; padding: 6px 12px; border-radius: 6px;
-      border: 1px solid #22AD7A; background: rgba(34, 173, 122, 0.16);
-      color: #fff; cursor: pointer; font-size: 12px; margin-right: 6px; }
-    .map-street-btn:hover { background: rgba(34, 173, 122, 0.28); }
+      border: 1px solid #28537D; background: #fff;
+      color: #28537D; cursor: pointer; font-size: 12px; font-weight: 600; margin-right: 6px; }
+    .map-street-btn:hover { background: #eef3f8; }
     .map-card-img { width: 100%; height: 110px; object-fit: cover;
       border-radius: 6px; margin-bottom: 8px; display: block;
-      background: rgba(255,255,255,0.04); }
+      background: #F0F1F2; }
     /* ---------- SCALE BAR ---------- */
     #scale-bar { position: fixed; bottom: 16px; left: 50%;
       transform: translateX(-50%); z-index: 4;
