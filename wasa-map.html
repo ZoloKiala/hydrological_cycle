@@ -300,7 +300,7 @@
     #search-box { position: fixed; top: 14px; left: 392px; right: 64px;
       z-index: 5; width: auto; max-width: 420px;
       display: flex; gap: 6px; align-items: stretch; }
-    body.panel-hidden #search-box { left: 16px; }
+    body.panel-hidden #search-box { left: 180px; }   /* clear the "WASA Solutions" show button that appears top-left when collapsed */
     #search-input { flex: 1; padding: 9px 14px; border-radius: 22px;
       border: 1px solid rgba(255,255,255,0.22);
       background: rgba(7,28,41,0.85); color: #fff;
@@ -358,6 +358,7 @@
          search box to start clear of it and fill to the right, instead of
          centering (which rode over the arrow on narrow screens). */
       #search-box { top: 12px; left: 56px; right: 12px; width: auto; max-width: none; }
+      body.panel-hidden #search-box { left: 56px; }   /* keep mobile placement (the desktop collapse rule uses left:180) */
       /* "Show panel" moves to the bottom on mobile so it doesn't sit under the
          now-top-aligned search box when the bottom sheet is dismissed. */
       #map-panel-show { top: auto; bottom: 16px; right: 16px; }
