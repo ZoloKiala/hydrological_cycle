@@ -1114,9 +1114,11 @@ function escapeHtml(s) {
 // the click); target="_blank" is the fallback if that can't attach.
 function buildDescription(iv) {
   const photos = (iv.photos || []).map(src =>
-    '<a class="wasa-photo" href="' + src + '" target="_blank" rel="noopener">' +
+    // flex items so they fill each row and shrink to fit narrow popups
+    '<a class="wasa-photo" href="' + src + '" target="_blank" rel="noopener" ' +
+      'style="flex:1 1 84px;max-width:130px;min-width:0;line-height:0">' +
       '<img src="' + src + '" alt="" loading="lazy" ' +
-        'style="width:88px;height:66px;object-fit:cover;border-radius:5px;cursor:zoom-in;' +
+        'style="width:100%;height:62px;object-fit:cover;border-radius:5px;cursor:zoom-in;' +
         'border:1px solid rgba(255,255,255,0.18)"></a>'
   ).join('');
   return '<div style="font-family:Segoe UI,sans-serif;font-size:13px;line-height:1.5">' +
