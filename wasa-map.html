@@ -447,6 +447,25 @@
   </style>
 </head>
 <body>
+  <!-- IWMI page loader — hidden once the globe's initial tiles have loaded -->
+  <div id="pageLoader" role="status" aria-label="Loading the 3D map">
+    <img src="https://www.iwmi.org/wp-content/uploads/2020/02/iwmi-logo-full-trans-white-43h.png" alt="IWMI" onerror="this.style.display='none'"/>
+    <div class="pl-ring"></div>
+    <div class="pl-text">Loading the 3D map…</div>
+  </div>
+  <style>
+  #pageLoader{position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:15px;background:#0a1820;transition:opacity .5s ease,visibility .5s;}
+  #pageLoader.pl-hidden{opacity:0;visibility:hidden;pointer-events:none;}
+  #pageLoader img{height:34px;width:auto;}
+  #pageLoader .pl-ring{width:44px;height:44px;border-radius:50%;border:3px solid rgba(255,255,255,0.15);border-top-color:#46BBD4;animation:pl-spin .8s linear infinite;}
+  @keyframes pl-spin{to{transform:rotate(360deg);}}
+  #pageLoader .pl-text{font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#9bc7e2;font-size:13px;letter-spacing:.02em;}
+  @media (prefers-reduced-motion:reduce){#pageLoader .pl-ring{animation:none;}}
+  </style>
+  <script>
+  window.__hideLoader=function(){var p=document.getElementById('pageLoader');if(p&&!p.__h){p.__h=1;p.classList.add('pl-hidden');setTimeout(function(){if(p.parentNode)p.parentNode.removeChild(p);},550);}};
+  setTimeout(window.__hideLoader,12000);  // safety net (first Cesium load can be slow)
+  </script>
   <header id="brand-bar">
     <img id="iwmi-logo"
          src="https://www.iwmi.org/wp-content/uploads/2020/02/iwmi-logo-full-trans-white-43h.png"

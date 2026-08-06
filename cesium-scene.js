@@ -485,6 +485,13 @@ const SOLUTIONS = [
   viewer.scene.fog.enabled = true;
   viewer.scene.skyAtmosphere.show = true;
 
+  // Hide the page loader once the globe's initial tiles have finished loading.
+  (function () {
+    const remove = viewer.scene.globe.tileLoadProgressEvent.addEventListener(function (remaining) {
+      if (remaining === 0) { remove(); setTimeout(function () { if (window.__hideLoader) window.__hideLoader(); }, 300); }
+    });
+  })();
+
   // Zoom in/out buttons (wasa-map.html) wired to the camera. The step scales
   // with the current altitude so it feels consistent at any zoom level.
   (function () {
