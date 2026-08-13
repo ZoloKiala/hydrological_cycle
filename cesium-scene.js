@@ -1059,10 +1059,14 @@ const SOLUTIONS = [
   // click, so we just additionally fly the camera in.
   viewer.screenSpaceEventHandler.setInputAction((event) => {
     const picked = viewer.scene.pick(event.position);
-    if (Cesium.defined(picked) && picked.id && typeof picked.id.id === 'string'
-        && picked.id.id.startsWith('wasa-')) {
-      const idx = parseInt(picked.id.id.slice(5), 10);
-      if (!isNaN(idx)) focusIntervention(idx);
+    if (Cesium.defined(picked) && picked.id && typeof picked.id.id === 'string') {
+      const eid = picked.id.id;
+      if (eid.startsWith('wasa-')) {
+        const idx = parseInt(eid.slice(5), 10);
+        if (!isNaN(idx)) focusIntervention(idx);
+      } else if (eid.startsWith('contrib-')) {
+        viewer.selectedEntity = picked.id;   // open the info box for a community submission
+      }
     }
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
