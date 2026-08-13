@@ -1289,6 +1289,7 @@ function setupLocationSearch(viewer) {
     try {
       const url = 'https://nominatim.openstreetmap.org/search'
         + '?q=' + encodeURIComponent(q)
+        + '&countrycodes=zm,mw'   // constrain place results to Zambia & Malawi only
         + '&format=json&limit=6&addressdetails=0';
       const resp = await fetch(url, { headers: { 'Accept': 'application/json' } });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
