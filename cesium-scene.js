@@ -1189,6 +1189,20 @@ function buildDescription(iv) {
 
 // InfoBox content for a community-submitted site (from /contributions).
 function buildContribDescription(p) {
+  // photos comes back as a JSON string of relative /media/ URLs; resolve them
+  // against the dashboard origin (production when served from GitHub Pages).
+  const base = location.hostname.indexOf('github.io') >= 0
+    ? 'https://wasa-project.up.railway.app' : location.origin;
+  let photoArr = [];
+  try { photoArr = typeof p.photos === 'string' ? JSON.parse(p.photos) : (p.photos || []); } catch (e) { photoArr = []; }
+  const photos = (photoArr || []).map(function (src) {
+    const url = /^https?:/.test(src) ? src : (base + src);
+    return '<a href="' + url + '" target="_blank" rel="noopener" ' +
+      'style="flex:1 1 84px;max-width:130px;min-width:0;line-height:0">' +
+      '<img src="' + url + '" alt="" loading="lazy" ' +
+        'style="width:100%;height:62px;object-fit:cover;border-radius:5px;' +
+        'border:1px solid rgba(255,255,255,0.18)"></a>';
+  }).join('');
   return '<div style="font-family:Segoe UI,sans-serif;font-size:13px;line-height:1.5">' +
     '<div style="color:#c9a0e0;font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Community submission</div>' +
     '<div style="color:#DD9103;font-weight:600;font-size:13px;margin-bottom:4px">' +
@@ -1200,6 +1214,7 @@ function buildContribDescription(p) {
       escapeHtml([p.community, p.camp].filter(Boolean).join(' · ')) + '</p>' : '') +
     (p.contributor ? '<p style="color:#9bc7e2;font-size:12px">Submitted by ' +
       escapeHtml(p.contributor) + '</p>' : '') +
+    (photos ? '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px">' + photos + '</div>' : '') +
   '</div>';
 }
 
