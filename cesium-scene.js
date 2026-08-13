@@ -538,6 +538,49 @@ const SOLUTIONS = [
     entityById.set(idx, entity);
   });
 
+  // Community-submitted WASA sites (approved via the dashboard) — shown on the
+  // globe alongside the curated interventions, in a distinct purple "+" marker.
+  // The API lives on the dashboard origin (or production, when this app is
+  // served from GitHub Pages).
+  (function () {
+    const base = location.hostname.indexOf('github.io') >= 0
+      ? 'https://wasa-project.up.railway.app' : location.origin;
+    fetch(base + '/contributions/geojson?status=approved')
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (gj) {
+        if (!gj || !gj.features) return;
+        gj.features.forEach(function (f, i) {
+          const g = f.geometry || {}, p = f.properties || {};
+          const co = g.coordinates; if (!co || co.length < 2) return;
+          viewer.entities.add({
+            id: 'contrib-' + (p.id != null ? p.id : i),
+            name: 'Community submission · ' + (p.category || p.kind || ''),
+            position: Cesium.Cartesian3.fromDegrees(co[0], co[1]),
+            point: {
+              pixelSize: 22,
+              color: Cesium.Color.fromCssColorString('#7a5195'),
+              outlineColor: Cesium.Color.fromCssColorString('#ffffff'),
+              outlineWidth: 2,
+              heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+              disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            },
+            label: {
+              text: '+',
+              font: 'bold 18px "Segoe UI", Arial, sans-serif',
+              fillColor: Cesium.Color.fromCssColorString('#ffffff'),
+              style: Cesium.LabelStyle.FILL,
+              verticalOrigin: Cesium.VerticalOrigin.CENTER,
+              horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+              heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+              disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            },
+            description: buildContribDescription(p),
+          });
+        });
+      })
+      .catch(function () {});
+  })();
+
   // Marker styling for the "selected" state. When a solution category with
   // several recorded sites is focused, every one of its markers is enlarged and
   // ringed in cyan so all the locations stand out at once (Cesium's built-in
@@ -1137,6 +1180,22 @@ function buildDescription(iv) {
     '<p style="color:#9bc7e2;font-size:12px">Recorded by ' + escapeHtml(iv.enumerator) + '</p>' +
     (photos
       ? '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px">' + photos + '</div>' : '') +
+  '</div>';
+}
+
+// InfoBox content for a community-submitted site (from /contributions).
+function buildContribDescription(p) {
+  return '<div style="font-family:Segoe UI,sans-serif;font-size:13px;line-height:1.5">' +
+    '<div style="color:#c9a0e0;font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Community submission</div>' +
+    '<div style="color:#DD9103;font-weight:600;font-size:13px;margin-bottom:4px">' +
+      escapeHtml(p.title || p.category || 'Submission') + '</div>' +
+    (p.kind ? '<p style="margin:2px 0;color:#9bc7e2">' + escapeHtml(p.kind) +
+      (p.category ? (' · ' + escapeHtml(p.category)) : '') + '</p>' : '') +
+    (p.description ? '<p>' + escapeHtml(p.description) + '</p>' : '') +
+    ((p.community || p.camp) ? '<p style="color:#9bc7e2;font-size:12px">' +
+      escapeHtml([p.community, p.camp].filter(Boolean).join(' · ')) + '</p>' : '') +
+    (p.contributor ? '<p style="color:#9bc7e2;font-size:12px">Submitted by ' +
+      escapeHtml(p.contributor) + '</p>' : '') +
   '</div>';
 }
 
