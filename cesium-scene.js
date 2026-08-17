@@ -552,7 +552,7 @@ const SOLUTIONS = [
         gj.features.forEach(function (f, i) {
           const g = f.geometry || {}, p = f.properties || {};
           const co = g.coordinates; if (!co || co.length < 2) return;
-          viewer.entities.add({
+          const entity = viewer.entities.add({
             id: 'contrib-' + (p.id != null ? p.id : i),
             name: 'Community submission · ' + (p.category || p.kind || ''),
             position: Cesium.Cartesian3.fromDegrees(co[0], co[1]),
@@ -575,6 +575,14 @@ const SOLUTIONS = [
               disableDepthTestDistance: Number.POSITIVE_INFINITY,
             },
             description: buildContribDescription(p),
+          });
+          // Probe each photo and keep only the ones that actually load, then
+          // rebuild the InfoBox. The InfoBox iframe can't run scripts, so a dead
+          // /media/ file (e.g. lost before the uploads volume existed) would
+          // otherwise show as a permanent broken/empty tile.
+          resolveContribPhotos(p, base).then(function (okUrls) {
+            p._photos = okUrls;
+            entity.description = buildContribDescription(p);
           });
         });
       })
@@ -1187,22 +1195,47 @@ function buildDescription(iv) {
   '</div>';
 }
 
+// Resolve a submission's photos to absolute URLs and load-test each one,
+// returning only those that actually resolve. Used to strip dead /media/
+// references (files lost before the persistent uploads volume existed).
+function resolveContribPhotos(p, base) {
+  let arr = [];
+  try { arr = typeof p.photos === 'string' ? JSON.parse(p.photos) : (p.photos || []); } catch (e) { arr = []; }
+  const urls = (arr || []).map(function (src) { return /^https?:/.test(src) ? src : (base + src); });
+  return Promise.all(urls.map(function (url) {
+    return new Promise(function (resolve) {
+      const im = new Image();
+      im.onload = function () { resolve(url); };
+      im.onerror = function () { resolve(null); };
+      im.src = url;
+    });
+  })).then(function (res) { return res.filter(Boolean); });
+}
+
 // InfoBox content for a community-submitted site (from /contributions).
 function buildContribDescription(p) {
   // photos comes back as a JSON string of relative /media/ URLs; resolve them
   // against the dashboard origin (production when served from GitHub Pages).
   const base = location.hostname.indexOf('github.io') >= 0
     ? 'https://wasa-project.up.railway.app' : location.origin;
-  let photoArr = [];
-  try { photoArr = typeof p.photos === 'string' ? JSON.parse(p.photos) : (p.photos || []); } catch (e) { photoArr = []; }
-  const photos = (photoArr || []).map(function (src) {
-    const url = /^https?:/.test(src) ? src : (base + src);
+  // Prefer the probed, known-good absolute URLs (set once photos are verified);
+  // fall back to the raw list on first paint before the probe resolves.
+  let photoArr;
+  if (p._photos) {
+    photoArr = p._photos;
+  } else {
+    try { photoArr = typeof p.photos === 'string' ? JSON.parse(p.photos) : (p.photos || []); } catch (e) { photoArr = []; }
+    photoArr = (photoArr || []).map(function (src) { return /^https?:/.test(src) ? src : (base + src); });
+  }
+  // Render each photo as a CSS background-image (not <img>): Cesium's InfoBox
+  // iframe is sandboxed without allow-scripts, so an onerror handler can't run —
+  // but a background-image that 404s simply renders nothing, no broken-icon.
+  const photos = (photoArr || []).map(function (url) {
     return '<a href="' + url + '" target="_blank" rel="noopener" ' +
-      'style="flex:1 1 84px;max-width:130px;min-width:0;line-height:0">' +
-      '<img src="' + url + '" alt="" loading="lazy" ' +
-        'onerror="this.parentNode.style.display=\'none\'" ' +
-        'style="width:100%;height:62px;object-fit:cover;border-radius:5px;' +
-        'border:1px solid rgba(255,255,255,0.18)"></a>';
+      'style="flex:1 1 84px;max-width:130px;min-width:0;height:62px;border-radius:5px;' +
+      'border:1px solid rgba(255,255,255,0.18);background-color:rgba(255,255,255,0.05);' +
+      "background-image:url('" + url + "');background-size:cover;background-position:center\">" +
+      '</a>';
   }).join('');
   return '<div style="font-family:Segoe UI,sans-serif;font-size:13px;line-height:1.5">' +
     '<div style="color:#c9a0e0;font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Community submission</div>' +
