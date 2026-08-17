@@ -1200,6 +1200,7 @@ function buildContribDescription(p) {
     return '<a href="' + url + '" target="_blank" rel="noopener" ' +
       'style="flex:1 1 84px;max-width:130px;min-width:0;line-height:0">' +
       '<img src="' + url + '" alt="" loading="lazy" ' +
+        'onerror="this.parentNode.style.display=\'none\'" ' +
         'style="width:100%;height:62px;object-fit:cover;border-radius:5px;' +
         'border:1px solid rgba(255,255,255,0.18)"></a>';
   }).join('');
