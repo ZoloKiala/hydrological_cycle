@@ -329,6 +329,61 @@ const interventions = [
     pos: [-14.490953, 35.16548],
     range: 500, heading: 0, pitch: -40,
   },
+  {
+    icon: "D",
+    category: "Erosion Control & Riparian Buffers",
+    title: "Trenches constitution",
+    text: "In TA Chowe, GVH Kawinga, Village Mwamadimusosa, Chitukuko VNRMC with 30 members and 213 followers is working on gully reclamation at Lower Lingamasa by constructing trenches and WASA, and after cascading training they are rehabilitating an 8.7 km gully that is expected to protect 13 hectares of land. As part of reclamation the followers has also planted elephants grass along the gullies",
+    enumerator: "Taonga Chikoya",
+    comments: "The village has 3 Gully which are under reclamation",
+    photos: [],
+    pos: [-14.559715, 35.38562],
+    range: 500, heading: 0, pitch: -40,
+  },
+  {
+    icon: "A",
+    category: "Afforestation & Agroforestry",
+    title: "Tree nursery",
+    text: "In TA Chowe, GVH Kawinga, Village Mwamadimusosa, Chitukuko VNRMC has established tree nurseries to raise 10,000 seedlings for distribution to the community and planting in gullies, community forests, and surrounding areas during the rainy season, targeting to plant trees on 12 hectares of forest land. They are working with 115 members, 11 male and 104 Female, aims to reach to 1834 participate in the communitie",
+    enumerator: "Taonga Chikoya",
+    comments: "September tree seeds will be planted \nDecember, January and February will be transplanting tree into forest",
+    photos: [],
+    pos: [-14.561365, 35.377759],
+    range: 500, heading: 0, pitch: -40,
+  },
+  {
+    icon: "B",
+    category: "Conservation Agriculture",
+    title: "Cover crops",
+    text: "Likonde Youth Club, under GVH Likonde in TA Mponda, Mangochi, has 30 members 18 female,  who are implementing crop diversification and NUA 45 bean seed multiplication using cover crops to conserve soil. The group is using a rented engine pump for irrigation and plans to produce more bean seeds for distribution. There practicing agriculture conservation at 4 Ha of land where there have planted Bean seeds",
+    enumerator: "Taonga Chikoya",
+    comments: "",
+    photos: [],
+    pos: [-14.525139, 35.036923],
+    range: 500, heading: 0, pitch: -40,
+  },
+  {
+    icon: "B",
+    category: "Conservation Agriculture",
+    title: "Cover crop",
+    text: "Inter cropping NUA 45 beans with maize 20 beneficiaries  10 men and 10 women",
+    enumerator: "Elinat Mtupanyama",
+    comments: "This monitoring activity was successful done with 2 kead farmers 1 male and 1 female plus 1 female government staff  from Agriculture department.",
+    photos: [],
+    pos: [-15.86724, 35.499673],
+    range: 500, heading: 0, pitch: -40,
+  },
+  {
+    icon: "A",
+    category: "Afforestation & Agroforestry",
+    title: "Tree nursery",
+    text: "A tree nursery has been mapped and supported with 4000 polythene tubes. A total 6626 seeds; 4000 white mtangatanga and 2626 kesha have been planted. The seedlings will be planted on a woodlot, around the villages and along riverbanks. Some seedlings will be donated to schools within the catchment. The nursery is being managed by Mwayi VNRMC which has a membership of 171 (53 Males and 118 Females).",
+    enumerator: "Wakisa Mizimbe",
+    comments: "",
+    photos: [],
+    pos: [-16.149423, 34.791377],
+    range: 500, heading: 0, pitch: -40,
+  },
 ];
 
 // `image` (used by the Street-View static photo fallback) is simply the first
@@ -374,7 +429,7 @@ const SOLUTIONS = [
     text: 'Contour bunds, mulch strips, and grass tufts hold rainfall on the slope above the gully. ' +
       'Riparian buffers along the river trap sediment before it reaches downstream water bodies.',
     impact: 'Protected topsoil, reduced sediment in rivers',
-    image: 'https://loremflickr.com/640/240/erosion,gully,soil/all?lock=4',
+    image: 'photos/card-erosion.jpg',
   },
   {
     letter: 'E', name: 'Rainwater Harvesting & Farm Ponds',
@@ -395,7 +450,7 @@ const SOLUTIONS = [
     text: 'A local watershed committee decides where ponds and forest patches go, enforces grazing rules, ' +
       'and maintains the interventions between seasons.',
     impact: 'Durable, locally-owned landscape stewardship',
-    image: 'https://loremflickr.com/640/240/village,community,africa/all?lock=7',
+    image: 'photos/card-governance.jpg',
   },
   {
     letter: 'H', name: 'Climate Information Services',
@@ -1103,6 +1158,22 @@ function buildCards() {
   });
 
   container.replaceChildren(frag);
+
+  // How much fieldwork is actually behind this map. Counted from the same array
+  // the markers come from, so the figure cannot drift from what is displayed.
+  // Deliberately does NOT count enumerators: the field data holds several
+  // spellings of the same name (one person appears seven ways), so any such
+  // figure would overstate how many people collected it.
+  const tally = document.getElementById('site-tally');
+  if (tally) {
+    const cats = Object.keys(count).length;
+    const withPhotos = interventions.filter((iv) => (iv.photos || []).length).length;
+    tally.innerHTML =
+      '<strong>' + interventions.length + ' interventions recorded</strong> so far · ' +
+      cats + ' of ' + SOLUTIONS.length + ' solution types · ' +
+      withPhotos + ' with photos';
+    tally.hidden = false;
+  }
 }
 
 function buildCard(sol, siteIdx, siteCount) {
@@ -1117,6 +1188,10 @@ function buildCard(sol, siteIdx, siteCount) {
   thumb.alt = sol.name;
   thumb.loading = 'lazy';
   thumb.referrerPolicy = 'no-referrer';
+  // A dead image URL otherwise leaves the browser's broken-image icon and the
+  // alt text sitting in the card. These thumbnails are decoration, so drop the
+  // element and let the card close up instead of showing a failure.
+  thumb.addEventListener('error', function () { thumb.remove(); }, { once: true });
 
   const head = document.createElement('div');
   head.className = 'map-card-head';

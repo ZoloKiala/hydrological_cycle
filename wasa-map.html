@@ -117,6 +117,10 @@
       letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 6px; font-weight: 700; }
     #map-panel .intro { font-size: 13px; line-height: 1.5; color: #5B6B7A;
       margin: 4px 0 14px 0; }
+    .site-tally { margin: 6px 0 0; padding: 7px 11px; font-size: 12px;
+      line-height: 1.45; color: #5B6B7A; background: rgba(40, 83, 125, 0.07);
+      border-left: 3px solid #DD9103; border-radius: 0 6px 6px 0; }
+    .site-tally strong { color: #1C2B3A; }
     .map-card { border: 1px solid #E8E7E7; border-radius: 10px;
       padding: 10px 12px; margin-bottom: 10px; background: #F7F8FA; }
     .map-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
@@ -680,6 +684,9 @@
     <button id="map-panel-close" type="button" aria-label="Hide WASA panel" title="Hide panel">x</button>
     <span class="eyebrow">How WASA improves the water cycle</span>
     <h2 id="watershed-name">The eight WASA solutions</h2>
+    <!-- Filled by cesium-scene.js from the interventions array, so the count
+         cannot drift from what is actually on the map. -->
+    <p id="site-tally" class="site-tally" hidden></p>
     <p class="intro">
       The eight Water&nbsp;and&nbsp;Soil&nbsp;Accelerator interventions and how each improves the
       water cycle. The <strong>map markers are real sites</strong> recorded in the field across
